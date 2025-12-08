@@ -1,0 +1,64 @@
+2025-12-08 15:18:51,243 - MCP Server - INFO - MCP Server initialized and registered on DBus
+2025-12-08 15:18:51,243 - MCP Server - INFO - Tool added: echo
+2025-12-08 15:18:51,243 - MCP Server - INFO - Heartbeat monitor started
+2025-12-08 15:18:51,243 - MCP Server - INFO - ============================================================
+2025-12-08 15:18:51,243 - MCP Server - INFO - MCP Server started successfully
+2025-12-08 15:18:51,244 - MCP Server - INFO - ============================================================
+2025-12-08 15:18:51,244 - MCP Server - INFO - Service name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:18:51,244 - MCP Server - INFO - Object path: /com/kylin/ai/mcp/MasterAgent
+2025-12-08 15:18:51,244 - MCP Server - INFO - Interface name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:18:51,244 - MCP Server - INFO - 
+2025-12-08 15:18:51,244 - MCP Server - INFO - 等待子智能体注册...
+2025-12-08 15:18:51,244 - MCP Server - INFO - ============================================================
+2025-12-08 15:18:54,260 - MCP Server - INFO - Child agent registered: FileAgent
+2025-12-08 15:18:54,260 - MCP Server - INFO -   Tools: ['file_agent.search_file', 'file_agent.move_to_trash']
+2025-12-08 15:18:54,260 - MCP Server - INFO - Child agent registered: SettingsAgent
+2025-12-08 15:18:54,260 - MCP Server - INFO -   Tools: ['settings_agent.change_wallpaper', 'settings_agent.adjust_volume']
+2025-12-08 15:19:18,669 - MCP Server - INFO - MCP Server initialized and registered on DBus
+2025-12-08 15:19:18,669 - MCP Server - INFO - Tool added: echo
+2025-12-08 15:19:18,669 - MCP Server - INFO - Heartbeat monitor started
+2025-12-08 15:19:18,669 - MCP Server - INFO - ============================================================
+2025-12-08 15:19:18,669 - MCP Server - INFO - MCP Server started successfully
+2025-12-08 15:19:18,669 - MCP Server - INFO - ============================================================
+2025-12-08 15:19:18,669 - MCP Server - INFO - Service name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:19:18,669 - MCP Server - INFO - Object path: /com/kylin/ai/mcp/MasterAgent
+2025-12-08 15:19:18,669 - MCP Server - INFO - Interface name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:19:18,669 - MCP Server - INFO - 
+2025-12-08 15:19:18,669 - MCP Server - INFO - 等待子智能体注册...
+2025-12-08 15:19:18,669 - MCP Server - INFO - ============================================================
+2025-12-08 15:19:21,669 - MCP Server - INFO - Child agent registered: FileAgent
+2025-12-08 15:19:21,669 - MCP Server - INFO -   Tools: ['file_agent.search_file', 'file_agent.move_to_trash']
+2025-12-08 15:19:21,670 - MCP Server - INFO - Child agent registered: SettingsAgent
+2025-12-08 15:19:21,670 - MCP Server - INFO -   Tools: ['settings_agent.change_wallpaper', 'settings_agent.adjust_volume']
+2025-12-08 15:41:07,046 - MCP Server - INFO - MCP Server initialized and registered on DBus
+2025-12-08 15:41:07,046 - MCP Server - INFO - Tool added: echo
+2025-12-08 15:41:07,047 - MCP Server - INFO - Heartbeat monitor started
+2025-12-08 15:41:07,047 - MCP Server - INFO - ============================================================
+2025-12-08 15:41:07,047 - MCP Server - INFO - MCP Server started successfully
+2025-12-08 15:41:07,047 - MCP Server - INFO - ============================================================
+2025-12-08 15:41:07,047 - MCP Server - INFO - Service name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:41:07,047 - MCP Server - INFO - Object path: /com/kylin/ai/mcp/MasterAgent
+2025-12-08 15:41:07,047 - MCP Server - INFO - Interface name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:41:07,047 - MCP Server - INFO - 
+2025-12-08 15:41:07,047 - MCP Server - INFO - 等待子智能体注册...
+2025-12-08 15:41:07,047 - MCP Server - INFO - ============================================================
+2025-12-08 15:41:10,052 - MCP Server - INFO - Child agent registered: FileAgent
+2025-12-08 15:41:10,052 - MCP Server - INFO -   Tools: ['file_agent.search_file', 'file_agent.move_to_trash']
+2025-12-08 15:41:10,053 - MCP Server - INFO - Child agent registered: SettingsAgent
+2025-12-08 15:41:10,053 - MCP Server - INFO -   Tools: ['settings_agent.change_wallpaper', 'settings_agent.adjust_volume']
+2025-12-08 15:46:37,866 - MCP Server - INFO - MCP Server initialized and registered on DBus
+2025-12-08 15:46:37,866 - MCP Server - INFO - Tool added: echo
+2025-12-08 15:46:37,866 - MCP Server - INFO - Heartbeat monitor started
+2025-12-08 15:46:37,867 - MCP Server - INFO - ============================================================
+2025-12-08 15:46:37,867 - MCP Server - INFO - MCP Server started successfully
+2025-12-08 15:46:37,867 - MCP Server - INFO - ============================================================
+2025-12-08 15:46:37,867 - MCP Server - INFO - Service name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:46:37,867 - MCP Server - INFO - Object path: /com/kylin/ai/mcp/MasterAgent
+2025-12-08 15:46:37,867 - MCP Server - INFO - Interface name: com.kylin.ai.mcp.MasterAgent
+2025-12-08 15:46:37,867 - MCP Server - INFO - 
+2025-12-08 15:46:37,867 - MCP Server - INFO - 等待子智能体注册...
+2025-12-08 15:46:37,867 - MCP Server - INFO - ============================================================
+2025-12-08 15:46:40,877 - MCP Server - INFO - Child agent registered: FileAgent
+2025-12-08 15:46:40,877 - MCP Server - INFO -   Tools: ['file_agent.search_file', 'file_agent.move_to_trash']
+2025-12-08 15:46:40,877 - MCP Server - INFO - Child agent registered: SettingsAgent
+2025-12-08 15:46:40,877 - MCP Server - INFO -   Tools: ['settings_agent.change_wallpaper', 'settings_agent.adjust_volume']

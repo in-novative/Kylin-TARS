@@ -1,0 +1,56 @@
+{
+  "task": "将下载目录的tmp文件移动到回收站",
+  "task_hash": "e2ecacfc",
+  "keywords": [
+    "目录",
+    "文件",
+    "移动",
+    "下载"
+  ],
+  "reasoning_chain": {
+    "thought_chain": {
+      "task_understanding": "用户需要删除tmp文件",
+      "task_decomposition": "1. 搜索tmp文件；2. 移动到回收站",
+      "agent_selection": [
+        {
+          "step": 1,
+          "agent": "FileAgent",
+          "reason": "需要文件操作功能"
+        }
+      ],
+      "risk_assessment": "文件可能不存在",
+      "fallback_plan": "提示用户检查文件名"
+    },
+    "execution_plan": [
+      {
+        "step": 1,
+        "action": "搜索tmp文件",
+        "agent": "FileAgent"
+      },
+      {
+        "step": 2,
+        "action": "移动到回收站",
+        "agent": "FileAgent"
+      }
+    ],
+    "milestone_markers": [
+      "search_complete",
+      "file_moved"
+    ]
+  },
+  "execution_result": "[{\"tool_name\": \"file_agent.search_file\", \"parameters\": {\"search_path\": \"~/Downloads\", \"keyword\": \"*.png\", \"recursive\": true}, \"timestamp\": \"2025-12-08T15:18:56.382912\", \"success\": true, \"result\": {\"files\": [{\"file_name\": \"image1.png\", \"file_path\": \"~/Downloads/image1.png\"}, {\"file_name\": \"image2.png\", \"file_path\": \"~/Downloads/image2.png\"}], \"count\": 2}, \"message\": \"搜索完成，找到 2 个文件\"}, {\"tool_name\": \"file_agent.move_to_trash\", \"parameters\": {\"file_path\": \"\"}, \"timestamp\": \"2025-12-08T15:18:56.382956\", \"success\": true, \"result\": {\"moved\": \"\"}, \"message\": \"文件已移动到回收站\"}]",
+  "gui_action": null,
+  "agents_involved": [
+    "FileAgent"
+  ],
+  "success": true,
+  "screenshot_paths": [],
+  "screenshot_count": 0,
+  "timestamp": "2025-12-08 15:18:56",
+  "timestamp_unix": 1765178336,
+  "metadata": {
+    "source": "full_integration",
+    "mock_mode": true,
+    "reused_reasoning": true
+  }
+}

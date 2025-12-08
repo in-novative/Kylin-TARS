@@ -1,0 +1,52 @@
+{
+  "task": "将下载目录的tmp文件移动到回收站",
+  "task_hash": "e2ecacfc",
+  "keywords": [
+    "移动",
+    "文件",
+    "下载",
+    "目录"
+  ],
+  "reasoning_chain": {
+    "thought_chain": {
+      "task_understanding": "用户需要删除tmp文件",
+      "task_decomposition": "1. 搜索tmp文件；2. 移动到回收站",
+      "agent_selection": [
+        {
+          "step": 1,
+          "agent": "FileAgent",
+          "reason": "需要文件操作功能"
+        }
+      ],
+      "risk_assessment": "文件可能不存在",
+      "fallback_plan": "提示用户检查文件名"
+    },
+    "execution_plan": [
+      {
+        "step": 1,
+        "action": "搜索tmp文件",
+        "agent": "FileAgent"
+      },
+      {
+        "step": 2,
+        "action": "移动到回收站",
+        "agent": "FileAgent"
+      }
+    ],
+    "milestone_markers": [
+      "search_complete",
+      "file_moved"
+    ]
+  },
+  "execution_result": "文件已移动到回收站",
+  "gui_action": null,
+  "agents_involved": [
+    "FileAgent"
+  ],
+  "success": true,
+  "screenshot_paths": [],
+  "screenshot_count": 0,
+  "timestamp": "2025-12-04 21:22:57",
+  "timestamp_unix": 1764854577,
+  "metadata": {}
+}
