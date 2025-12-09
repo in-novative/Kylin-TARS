@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 环境变量
+.env
+.venv
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+mcp_server.log
+
+# 截图和临时文件
+screenshots/
+*.png
+*.jpg
+*.jpeg
+!Desktop/test_wallpaper.jpg
+
+# 记忆数据（可选，如果不想提交）
+# data/collaboration_memory/*.json
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+test_*.py
+*_test.py
+
+# Conda
+.conda/
+
+# 模型文件（大文件）
+models/
+*.bin
+*.safetensors
+
+# 临时文件
+*.tmp
+*.bak
+*.cache
+

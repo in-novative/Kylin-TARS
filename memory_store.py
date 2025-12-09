@@ -23,27 +23,11 @@ from typing import Optional, Dict, List, Any
 # 存储配置
 # ============================================================
 
-# 存储模式配置
-# - "project": 存储在项目目录内（便于版本控制和项目迁移）
-# - "system": 存储在用户配置目录（数据持久化，多项目共享）
-STORAGE_MODE = os.environ.get("MEMORY_STORAGE_MODE", "project")  # 默认改为项目内
-
-# 项目根目录（自动检测当前文件所在目录）
-PROJECT_ROOT = Path(__file__).parent.absolute()
-
-# 根据模式选择存储目录
-if STORAGE_MODE == "project":
-    # 存储在项目内的 data/memory 目录
-    STORAGE_DIR = str(PROJECT_ROOT / "data" / "collaboration_memory")
-else:
-    # 存储在用户配置目录（XDG规范）
-    STORAGE_DIR = os.path.expanduser("~/.config/kylin-gui-agent/collaboration_memory")
+# 存储目录（使用用户配置目录，避免权限问题）
+STORAGE_DIR = os.path.expanduser("~/.config/kylin-gui-agent/collaboration_memory")
 
 # 确保存储目录存在
 os.makedirs(STORAGE_DIR, exist_ok=True)
-
-# 打印当前存储位置（仅首次导入时）
-print(f"📁 记忆存储位置: {STORAGE_DIR}")
 
 
 # ============================================================

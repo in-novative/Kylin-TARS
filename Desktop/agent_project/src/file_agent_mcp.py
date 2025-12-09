@@ -11,9 +11,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.file_agent_logic import FileAgentLogic
 
 # ===================== MCP Server DBus配置 =====================
-MCP_BUS_NAME = "com.mcp.server"
-MCP_OBJECT_PATH = "/com/mcp/server"
-MCP_INTERFACE = "com.mcp.server.Interface"
+# 使用成员A的MCP Server配置（统一标准）
+MCP_BUS_NAME = "com.kylin.ai.mcp.MasterAgent"
+MCP_OBJECT_PATH = "/com/kylin/ai/mcp/MasterAgent"
+MCP_INTERFACE = "com.kylin.ai.mcp.MasterAgent"
 
 # ===================== FileAgent DBus配置 =====================
 AGENT_BUS_NAME = "com.mcp.agent.file"
@@ -144,7 +145,7 @@ def register_to_mcp():
             "interface": AGENT_INTERFACE,
             "tools": FILE_AGENT_TOOLS
         })
-        mcp_interface.RegisterAgent(register_data)
+        mcp_interface.AgentRegister(register_data)
         print("[INFO] FileAgent已成功注册到MCP Server")
     except Exception as e:
         print(f"[ERROR] 注册到MCP Server失败：{str(e)}")

@@ -54,10 +54,10 @@ echo "本脚本将启动以下服务："
 echo "  1. MCP Server (D-Bus Master Agent)"
 echo "  2. FileAgent (文件操作服务)"
 echo "  3. SettingsAgent (系统设置服务)"
-echo "  4. Gradio UI (Web 界面，端口 7860)"
+echo "  4. Gradio UI (Web 界面，端口 7870)"
 echo ""
-echo -e "${YELLOW}按 Enter 继续，Ctrl+C 取消...${NC}"
-read
+# 移除交互式确认，直接启动
+echo -e "${YELLOW}开始启动服务...${NC}"
 
 # 在D-Bus会话中启动所有服务
 dbus-run-session -- /bin/bash -c "
