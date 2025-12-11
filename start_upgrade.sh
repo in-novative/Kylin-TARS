@@ -1,11 +1,13 @@
 #!/bin/bash
 # Kylin-TARS GUI Agent 升级版启动脚本
 #
-# 包含4个智能体：
+# 包含6个智能体：
 #   - FileAgent: 文件操作
 #   - SettingsAgent: 系统设置
 #   - NetworkAgent: 网络管理
 #   - AppAgent: 应用管理
+#   - MonitorAgent: 系统监控
+#   - MediaAgent: 媒体控制
 #
 # 使用方式：
 #   ./start_upgrade.sh
@@ -25,11 +27,22 @@ NC='\033[0m'
 PROJECT_ROOT=$(dirname "$(readlink -f "$0")")
 cd "$PROJECT_ROOT"
 
+# 加载 API 配置（如果存在）
+CONFIG_DIR="$HOME/.config/kylin-gui-agent"
+if [ -f "$CONFIG_DIR/api_config.sh" ]; then
+    echo -e "${CYAN}[加载API配置]${NC}"
+    source "$CONFIG_DIR/api_config.sh"
+    echo "  API地址: ${VLLM_API_BASE:-未设置}"
+fi
+
+# 设置默认值
+export VLLM_API_BASE="${VLLM_API_BASE:-http://localhost:8000}"
+
 echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${PURPLE}║                                                              ║${NC}"
 echo -e "${PURPLE}║  🚀 Kylin-TARS GUI Agent 升级版                              ║${NC}"
 echo -e "${PURPLE}║                                                              ║${NC}"
-echo -e "${PURPLE}║  智能体: FileAgent | SettingsAgent | NetworkAgent | AppAgent ║${NC}"
+echo -e "${PURPLE}║  智能体: FileAgent | SettingsAgent | NetworkAgent | AppAgent | MonitorAgent | MediaAgent ║${NC}"
 echo -e "${PURPLE}║                                                              ║${NC}"
 echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -86,13 +99,25 @@ dbus-run-session -- /bin/bash -c "
     echo '  ✓ NetworkAgent 已启动'
     
     echo ''
-    echo -e '${GREEN}[5/6] 启动 AppAgent${NC}'
+    echo -e '${GREEN}[5/7] 启动 AppAgent${NC}'
     '$PYTHON_EXEC' app_agent_mcp.py &
     /bin/sleep 1
     echo '  ✓ AppAgent 已启动'
     
     echo ''
-    echo -e '${GREEN}[6/6] 启动 Gradio UI（升级版）${NC}'
+    echo -e '${GREEN}[6/7] 启动 MonitorAgent${NC}'
+    '$PYTHON_EXEC' monitor_agent_mcp.py &
+    /bin/sleep 1
+    echo '  ✓ MonitorAgent 已启动'
+    
+    echo ''
+    echo -e '${GREEN}[7/7] 启动 MediaAgent${NC}'
+    '$PYTHON_EXEC' media_agent_mcp.py &
+    /bin/sleep 1
+    echo '  ✓ MediaAgent 已启动'
+    
+    echo ''
+    echo -e '${GREEN}[8/8] 启动 Gradio UI（升级版）${NC}'
     echo ''
     echo -e '${PURPLE}╔══════════════════════════════════════════════════════════════╗${NC}'
     echo -e '${PURPLE}║  ✓ 所有服务启动成功！                                        ║${NC}'
@@ -101,9 +126,11 @@ dbus-run-session -- /bin/bash -c "
     echo -e '${PURPLE}║                                                              ║${NC}'
     echo -e '${PURPLE}║  已注册智能体:                                               ║${NC}'
     echo -e '${PURPLE}║    • FileAgent     - 文件搜索、移动到回收站                  ║${NC}'
-    echo -e '${PURPLE}║    • SettingsAgent - 壁纸设置、音量调整                      ║${NC}'
-    echo -e '${PURPLE}║    • NetworkAgent  - WiFi连接、代理设置                      ║${NC}'
-    echo -e '${PURPLE}║    • AppAgent      - 应用启动、关闭                          ║${NC}'
+    echo -e '${PURPLE}║    • SettingsAgent - 壁纸设置、音量调整、蓝牙管理            ║${NC}'
+    echo -e '${PURPLE}║    • NetworkAgent  - WiFi连接、代理设置、网络测速            ║${NC}'
+    echo -e '${PURPLE}║    • AppAgent      - 应用启动、关闭、快捷操作                ║${NC}'
+    echo -e '${PURPLE}║    • MonitorAgent  - 系统监控、进程清理                      ║${NC}'
+    echo -e '${PURPLE}║    • MediaAgent    - 媒体播放、控制                          ║${NC}'
     echo -e '${PURPLE}║                                                              ║${NC}'
     echo -e '${PURPLE}║  按 Ctrl+C 停止所有服务                                      ║${NC}'
     echo -e '${PURPLE}╚══════════════════════════════════════════════════════════════╝${NC}'

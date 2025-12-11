@@ -34,8 +34,17 @@ except ImportError:
 # ============================================================
 # API 配置
 # ============================================================
-API_BASE = "http://localhost:8000"
-MODEL_NAME = "/data1/models/UI-TARS-1.5-7B"
+# 支持环境变量配置，优先使用环境变量VLLM_API_BASE
+API_BASE = os.getenv("VLLM_API_BASE", "http://localhost:8000")
+MODEL_NAME = os.getenv("VLLM_MODEL_NAME", "/data1/models/UI-TARS-1.5-7B")
+
+# 导入模型适配器
+try:
+    from model_adapter import get_model_adapter
+    HAS_MODEL_ADAPTER = True
+except ImportError:
+    HAS_MODEL_ADAPTER = False
+    print("警告: 模型适配器未找到，将使用默认模型")
 
 # ============================================================
 # System-2 核心 Prompt 模板
@@ -45,17 +54,20 @@ MODEL_NAME = "/data1/models/UI-TARS-1.5-7B"
 SYSTEM2_MASTER_PROMPT = """你是openKylin桌面的中央调度智能体(Master Agent)，必须严格按照以下规则处理用户任务：
 
 ## 你的职责
-1. **任务分解**：将用户任务拆分为2-4个可执行子步骤（每个步骤对应具体操作）
-2. **智能体选择**：根据子步骤类型选择对应子智能体，并说明选择理由
-3. **风险评估**：识别最可能的执行风险
-4. **回退策略**：针对风险给出回退方案
+1. **任务分解**：将用户任务拆分为2-5个可执行子步骤（每个步骤对应单个工具调用）
+2. **上下文关联**：需关联前序指令执行结果，如先测速后根据网速调整应用启动策略
+3. **智能体选择**：根据子步骤类型选择对应子智能体，并说明选择理由
+4. **风险评估**：识别最可能的执行风险
+5. **回退策略**：针对风险给出回退方案
+6. **工具识别**：支持的工具包含现有工具+新增工具（批量重命名/蓝牙管理/测速/应用快捷操作/系统监控/媒体控制）
 
 ## 可用的子智能体
-- **FileAgent**: 文件操作（搜索、移动、复制、删除文件/目录）
-- **SettingsAgent**: 系统设置（壁纸、音量、亮度、网络、蓝牙等）
-- **AppAgent**: 应用操作（打开、关闭应用程序）
-- **BrowserAgent**: 浏览器操作（打开网页、搜索）
-- **TerminalAgent**: 终端命令执行
+- **FileAgent**: 文件操作（搜索、移动、复制、删除文件/目录、批量重命名）
+- **SettingsAgent**: 系统设置（壁纸、音量、亮度、网络、蓝牙管理等）
+- **NetworkAgent**: 网络管理（WiFi连接、代理设置、网络测速）
+- **AppAgent**: 应用操作（打开、关闭应用程序、应用快捷操作）
+- **MonitorAgent**: 系统监控（系统状态查询、后台进程清理、智能体状态监控）
+- **MediaAgent**: 媒体控制（播放音频/视频、媒体控制、截图播放帧）
 
 ## 输出格式要求
 必须返回JSON格式，字段如下（不可增减字段，不可修改格式）：
@@ -72,12 +84,31 @@ SYSTEM2_MASTER_PROMPT = """你是openKylin桌面的中央调度智能体(Master 
         "fallback_plan": "风险回退方案"
     },
     "execution_plan": [
-        {"step": 1, "action": "具体操作描述", "agent": "AgentName"},
-        {"step": 2, "action": "具体操作描述", "agent": "AgentName"}
+        {
+            "step": 1,
+            "action": "具体操作描述",
+            "agent": "AgentName",
+            "tool": "tool_name",
+            "context_ref": null,
+            "tool_extend": false
+        },
+        {
+            "step": 2,
+            "action": "具体操作描述",
+            "agent": "AgentName",
+            "tool": "tool_name",
+            "context_ref": "step_1",
+            "tool_extend": false
+        }
     ],
     "milestone_markers": ["milestone_1", "milestone_2", "milestone_3"]
 }
 ```
+
+## 字段说明
+- **context_ref**: 关联的前序步骤ID（如"step_1"），用于多轮上下文关联，null表示无依赖
+- **tool_extend**: 标记是否为扩展功能（true表示新增工具，如"batch_rename"、"bluetooth_connect"、"speed_test"等）
+- **tool**: 具体调用的工具名称（如"file_agent.batch_rename"、"network_agent.speed_test"）
 
 ## 示例
 用户任务："把下载目录的png文件设置为壁纸"
@@ -242,7 +273,7 @@ def parse_json_response(response_text: str) -> Optional[Dict]:
 
 def validate_reasoning_chain(chain: Dict) -> tuple:
     """
-    验证推理链格式是否正确
+    验证推理链格式是否正确（支持扩展字段）
     
     Args:
         chain: 解析后的推理链字典
@@ -263,6 +294,19 @@ def validate_reasoning_chain(chain: Dict) -> tuple:
         for field in thought_chain_fields:
             if field not in chain["thought_chain"]:
                 return False, f"thought_chain缺失字段: {field}"
+    
+    # 检查execution_plan字段（如果存在）
+    if "execution_plan" in chain:
+        for plan_item in chain["execution_plan"]:
+            if not isinstance(plan_item, dict):
+                return False, "execution_plan项必须是字典"
+            # 验证扩展字段（可选）
+            if "context_ref" not in plan_item:
+                plan_item["context_ref"] = None  # 默认值
+            if "tool_extend" not in plan_item:
+                plan_item["tool_extend"] = False  # 默认值
+            if "tool" not in plan_item:
+                plan_item["tool"] = ""  # 默认值
     
     return True, "格式正确"
 
@@ -307,24 +351,39 @@ def call_vllm_api(
     messages: list,
     max_tokens: int = 1024,
     temperature: float = 0.05,
-    timeout: int = 120
+    timeout: int = 120,
+    model_name: Optional[str] = None
 ) -> Optional[str]:
     """
-    调用vLLM API
+    调用vLLM API（支持模型自动切换）
     
     Args:
         messages: 消息列表
         max_tokens: 最大生成token数
         temperature: 温度参数
         timeout: 超时时间
+        model_name: 指定模型名称（可选，自动切换时忽略）
         
     Returns:
         模型响应文本，失败返回None
     """
     url = f"{API_BASE}/v1/chat/completions"
     
+    # 使用模型适配器（如果可用）
+    if HAS_MODEL_ADAPTER and not model_name:
+        adapter = get_model_adapter(api_base=API_BASE)
+        # 自动切换模型
+        current_model = adapter.auto_switch_model()
+        if current_model:
+            model_config = adapter.get_model_config(current_model)
+            model_path = model_config.get("path", current_model)
+        else:
+            model_path = MODEL_NAME
+    else:
+        model_path = model_name or MODEL_NAME
+    
     payload = {
-        "model": MODEL_NAME,
+        "model": model_path,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -337,6 +396,20 @@ def call_vllm_api(
         return result['choices'][0]['message']['content']
     except Exception as e:
         print(f"API调用失败: {e}")
+        
+        # 如果使用模型适配器，尝试切换到其他模型
+        if HAS_MODEL_ADAPTER and not model_name:
+            adapter = get_model_adapter(api_base=API_BASE)
+            available_models = adapter.list_available_models()
+            current_model = adapter.get_current_model()
+            
+            for model_info in available_models:
+                if model_info["name"] != current_model:
+                    print(f"尝试切换到模型: {model_info['name']}")
+                    if adapter.switch_model(model_info["name"]):
+                        # 重试调用
+                        return call_vllm_api(messages, max_tokens, temperature, timeout, model_info["name"])
+        
         return None
 
 
@@ -384,8 +457,19 @@ def generate_master_reasoning(
         print(f"用户任务: {user_task}")
         print(f"{'='*60}")
     
+    # 注入用户偏好（如果可用）
+    try:
+        from memory_store import get_user_preference_prompt
+        preference_prompt = get_user_preference_prompt()
+        if preference_prompt:
+            enhanced_prompt = SYSTEM2_MASTER_PROMPT + "\n\n## 用户偏好\n" + preference_prompt
+        else:
+            enhanced_prompt = SYSTEM2_MASTER_PROMPT
+    except:
+        enhanced_prompt = SYSTEM2_MASTER_PROMPT
+    
     messages = [
-        {"role": "system", "content": SYSTEM2_MASTER_PROMPT},
+        {"role": "system", "content": enhanced_prompt},
         {"role": "user", "content": f"用户任务：{user_task}\n\n请严格按照JSON格式输出推理链："}
     ]
     

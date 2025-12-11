@@ -25,9 +25,11 @@ from typing import Optional, Dict, List, Any
 
 # 存储目录（使用用户配置目录，避免权限问题）
 STORAGE_DIR = os.path.expanduser("~/.config/kylin-gui-agent/collaboration_memory")
+PREFERENCE_FILE = os.path.expanduser("~/.config/kylin-gui-agent/user_preference.json")
 
 # 确保存储目录存在
 os.makedirs(STORAGE_DIR, exist_ok=True)
+os.makedirs(os.path.dirname(PREFERENCE_FILE), exist_ok=True)
 
 
 # ============================================================
@@ -139,6 +141,12 @@ def save_collaboration_trajectory(
     # 保存到JSON文件
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(trajectory, f, ensure_ascii=False, indent=2)
+    
+    # 更新用户偏好（异步，不阻塞）
+    try:
+        update_user_preference(trajectory)
+    except Exception as e:
+        print(f"更新用户偏好失败: {e}")
     
     print(f"✓ 协作轨迹已保存: {file_path}")
     return file_path
@@ -584,6 +592,170 @@ def test_memory_store():
     print("\n" + "=" * 60)
     print("✓ 记忆模块测试完成！")
     print("=" * 60)
+
+
+# ============================================================
+# 用户偏好学习模块
+# ============================================================
+
+def load_user_preference() -> Dict:
+    """
+    加载用户偏好数据
+    
+    Returns:
+        用户偏好字典
+    """
+    if not os.path.exists(PREFERENCE_FILE):
+        return {
+            "common_paths": [],
+            "high_freq_tools": [],
+            "rename_rules": [],
+            "agent_preferences": {},
+            "path_frequency": {},
+            "tool_frequency": {},
+            "last_updated": None
+        }
+    
+    try:
+        with open(PREFERENCE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {
+            "common_paths": [],
+            "high_freq_tools": [],
+            "rename_rules": [],
+            "agent_preferences": {},
+            "path_frequency": {},
+            "tool_frequency": {},
+            "last_updated": None
+        }
+
+
+def save_user_preference(preference: Dict):
+    """
+    保存用户偏好数据
+    
+    Args:
+        preference: 用户偏好字典
+    """
+    preference["last_updated"] = datetime.now().isoformat()
+    with open(PREFERENCE_FILE, "w", encoding="utf-8") as f:
+        json.dump(preference, f, ensure_ascii=False, indent=2)
+
+
+def update_user_preference(trajectory: Dict):
+    """
+    根据轨迹更新用户偏好
+    
+    Args:
+        trajectory: 协作轨迹字典
+    """
+    preference = load_user_preference()
+    
+    # 1. 提取常用路径（出现≥3次标记为常用）
+    task = trajectory.get("task", "")
+    import re
+    paths = re.findall(r'[~/\w]+/\w+', task)
+    for path in paths:
+        normalized_path = os.path.expanduser(path) if path.startswith("~") else path
+        preference["path_frequency"][normalized_path] = preference["path_frequency"].get(normalized_path, 0) + 1
+    
+    # 更新常用路径列表（频率≥3）
+    common_paths = [p for p, freq in preference["path_frequency"].items() if freq >= 3]
+    preference["common_paths"] = sorted(common_paths, key=lambda x: preference["path_frequency"].get(x, 0), reverse=True)[:10]
+    
+    # 2. 提取高频工具（调用≥5次则优先推荐）
+    execution_plan = trajectory.get("reasoning_chain", {}).get("execution_plan", [])
+    for step in execution_plan:
+        if isinstance(step, dict):
+            tool = step.get("tool", "")
+            if tool:
+                preference["tool_frequency"][tool] = preference["tool_frequency"].get(tool, 0) + 1
+    
+    # 更新高频工具列表（频率≥5）
+    high_freq_tools = [t for t, freq in preference["tool_frequency"].items() if freq >= 5]
+    preference["high_freq_tools"] = sorted(high_freq_tools, key=lambda x: preference["tool_frequency"].get(x, 0), reverse=True)[:10]
+    
+    # 3. 提取操作习惯（重命名规则等）
+    if "批量重命名" in task or "batch_rename" in str(execution_plan):
+        # 提取重命名规则
+        rename_rule_match = re.search(r'(前缀|后缀|日期|序号|prefix|suffix|date|seq)', task, re.IGNORECASE)
+        if rename_rule_match:
+            rule = rename_rule_match.group(1).lower()
+            if rule not in preference["rename_rules"]:
+                preference["rename_rules"].append(rule)
+    
+    # 4. 智能体偏好（记录每个智能体的使用频率）
+    agents = trajectory.get("agents_involved", [])
+    for agent in agents:
+        preference["agent_preferences"][agent] = preference["agent_preferences"].get(agent, 0) + 1
+    
+    # 保存偏好
+    save_user_preference(preference)
+
+
+def get_user_preference_prompt() -> str:
+    """
+    生成用户偏好提示（用于注入到推理链Prompt）
+    
+    Returns:
+        偏好提示字符串
+    """
+    preference = load_user_preference()
+    
+    prompts = []
+    
+    # 常用路径提示
+    if preference["common_paths"]:
+        paths_str = "、".join(preference["common_paths"][:3])
+        prompts.append(f"优先使用常用路径：{paths_str}")
+    
+    # 高频工具提示
+    if preference["high_freq_tools"]:
+        tools_str = "、".join([t.split(".")[-1] for t in preference["high_freq_tools"][:3]])
+        prompts.append(f"推荐高频工具：{tools_str}")
+    
+    # 重命名规则偏好
+    if preference["rename_rules"]:
+        rules_str = "、".join(preference["rename_rules"][:2])
+        prompts.append(f"常用重命名规则：{rules_str}")
+    
+    if prompts:
+        return "用户偏好：" + "；".join(prompts)
+    return ""
+
+
+def get_preferred_path(path_type: str = "download") -> Optional[str]:
+    """
+    获取偏好路径
+    
+    Args:
+        path_type: 路径类型（download/desktop/document等）
+    
+    Returns:
+        偏好路径，无则返回None
+    """
+    preference = load_user_preference()
+    
+    # 根据类型匹配
+    type_keywords = {
+        "download": ["download", "下载"],
+        "desktop": ["desktop", "桌面"],
+        "document": ["document", "文档"]
+    }
+    
+    keywords = type_keywords.get(path_type.lower(), [])
+    
+    for path in preference["common_paths"]:
+        path_lower = path.lower()
+        if any(kw in path_lower for kw in keywords):
+            return path
+    
+    # 返回最常用的路径
+    if preference["common_paths"]:
+        return preference["common_paths"][0]
+    
+    return None
 
 
 if __name__ == "__main__":

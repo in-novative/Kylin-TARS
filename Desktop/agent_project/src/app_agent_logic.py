@@ -118,7 +118,7 @@ class AppAgentLogic:
             return self.make_response("error", "查找应用超时")
         except Exception as e:
             return self.make_response("error", f"查找应用失败: {e}")
-    
+        
     # ==================== 应用启动 ====================
     
     def launch_app(self, app_name: str, args: List[str] = None) -> Dict:
@@ -240,8 +240,8 @@ class AppAgentLogic:
                 time.sleep(1)
                 screenshot = self.capture_screenshot("app_closed")
                 return self.make_response(
-                    "success",
-                    f"已关闭应用: {app_name}",
+                "success",
+                f"已关闭应用: {app_name}",
                     {
                         "app_name": app_name,
                         "closed": True,
@@ -254,8 +254,8 @@ class AppAgentLogic:
                 return self.make_response(
                     "error",
                     f"关闭应用失败: {app_name}（无权限或进程不存在）"
-                )
-                
+            )
+            
         except Exception as e:
             return self.make_response("error", f"关闭应用失败: {e}")
     
@@ -332,6 +332,114 @@ class AppAgentLogic:
             
         except Exception as e:
             return self.make_response("error", f"检查应用状态失败: {e}")
+    
+    # ==================== 应用快捷操作 ====================
+    
+    def app_quick_operation(self, app_name: str, url: Optional[str] = None, args: List[str] = None) -> Dict:
+        """
+        应用快捷操作（定义主流应用参数映射）
+        
+        Args:
+            app_name: 应用名称（如firefox, chrome, 微信）
+            url: URL地址（可选，用于浏览器）
+            args: 启动参数（可选）
+            
+        Returns:
+            操作结果
+        """
+        try:
+            # 主流应用参数映射
+            app_mappings = {
+                "firefox": {
+                    "cmd": "firefox",
+                    "url_prefix": True,
+                    "description": "Firefox浏览器"
+                },
+                "chrome": {
+                    "cmd": "google-chrome",
+                    "url_prefix": True,
+                    "description": "Chrome浏览器"
+                },
+                "微信": {
+                    "cmd": "wechat",
+                    "url_prefix": False,
+                    "description": "微信"
+                },
+                "wine": {
+                    "cmd": "wine",
+                    "url_prefix": False,
+                    "description": "Wine运行Windows应用"
+                },
+                "终端": {
+                    "cmd": "gnome-terminal",
+                    "url_prefix": False,
+                    "description": "GNOME终端"
+                },
+                "文件": {
+                    "cmd": "nautilus",
+                    "url_prefix": False,
+                    "description": "文件管理器"
+                },
+                "gedit": {
+                    "cmd": "gedit",
+                    "url_prefix": False,
+                    "description": "文本编辑器"
+                }
+            }
+            
+            # 查找应用映射
+            app_info = app_mappings.get(app_name.lower())
+            if not app_info:
+                # 未找到映射，使用默认启动
+                cmd = [app_name]
+            else:
+                cmd = [app_info["cmd"]]
+            
+            # 处理URL参数（浏览器应用）
+            if url and app_info and app_info.get("url_prefix", False):
+                # 确保URL格式正确
+                if not url.startswith(("http://", "https://")):
+                    url = "https://" + url
+                cmd.append(url)
+            
+            # 添加额外参数
+            if args:
+                cmd.extend(args)
+            
+            # 启动应用
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+            
+            time.sleep(1)
+            
+            if process.poll() is None:
+                screenshot = self.capture_screenshot("app_quick_launched")
+                return self.make_response(
+                    "success",
+                    f"应用快捷操作成功: {app_name}" + (f" ({url})" if url else ""),
+                    {
+                        "app_name": app_name,
+                        "url": url,
+                        "pid": process.pid,
+                        "cmd": " ".join(cmd),
+                        "launched": True
+                    },
+                    screenshot
+                )
+            else:
+                return self.make_response(
+                    "error",
+                    f"应用启动失败: {app_name}（进程立即退出）"
+                )
+                
+        except FileNotFoundError:
+            return self.make_response("error", f"应用不存在: {app_name}")
+        except Exception as e:
+            return self.make_response("error", f"应用快捷操作失败: {e}")
 
 
 # ============================================================

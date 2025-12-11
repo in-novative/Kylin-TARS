@@ -46,6 +46,24 @@ FILE_AGENT_TOOLS: List[Dict] = [
             },
             "required": ["file_path"]
         }
+    },
+    {
+        "name": "file_agent.batch_rename",
+        "description": "批量重命名文件（支持前缀/后缀/序号/日期规则，保留原文件名映射用于回滚）",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "target_dir": {"type": "string", "description": "目标目录路径"},
+                "rename_rule": {"type": "string", "description": "重命名规则（prefix_seq/date_prefix_seq/suffix_seq/date_suffix_seq）"},
+                "file_type": {"type": "string", "description": "文件类型过滤（如.png，留空表示所有文件）"},
+                "prefix": {"type": "string", "description": "前缀（可选）"},
+                "suffix": {"type": "string", "description": "后缀（可选）"},
+                "start_number": {"type": "integer", "description": "起始序号（默认1）"}
+            },
+            "required": ["target_dir", "rename_rule"]
+        },
+        "permission": "normal",
+        "extend_type": "new"
     }
 ]
 
@@ -71,6 +89,20 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
         elif tool_name == "file_agent.move_to_trash":
             file_path = params["file_path"]
             result = file_agent.move_to_trash(file_path)
+            return {
+                "success": result["status"] == "success",
+                "result": result["data"],
+                "error": result["msg"] if result["status"] == "error" else None
+            }
+        elif tool_name == "file_agent.batch_rename":
+            result = file_agent.batch_rename(
+                target_dir=params["target_dir"],
+                rename_rule=params["rename_rule"],
+                file_type=params.get("file_type", ""),
+                prefix=params.get("prefix", ""),
+                suffix=params.get("suffix", ""),
+                start_number=params.get("start_number", 1)
+            )
             return {
                 "success": result["status"] == "success",
                 "result": result["data"],

@@ -1,0 +1,51 @@
+#!/bin/bash
+# Kylin-TARS API 配置模板
+# 
+# 使用方法：
+# 1. 复制此文件到 ~/.config/kylin-gui-agent/api_config.sh
+# 2. 修改下面的配置为您的实际值
+# 3. 运行 start_upgrade.sh 时会自动加载此配置
+
+# ============================================================
+# 远程 uitars 模型服务器配置
+# ============================================================
+
+# API 服务器地址（必填）
+# 格式: http://<服务器IP>:<端口>
+# 示例: http://192.168.1.100:8000
+export VLLM_API_BASE="http://localhost:8000"
+
+# 模型名称（可选）
+# 如果服务器有多个模型，可以指定使用的模型
+# 示例: UI-TARS-1.5-7B
+export VLLM_MODEL_NAME="UI-TARS-1.5-7B"
+
+# API 超时时间（秒，可选）
+# 默认: 120秒
+export VLLM_API_TIMEOUT=120
+
+# 是否启用 SSL（可选）
+# 如果使用 HTTPS，设置为 true
+export VLLM_API_SSL=false
+
+# API Key（可选）
+# 如果服务器需要身份验证，设置此值
+# export VLLM_API_KEY="your-api-key-here"
+
+# ============================================================
+# 使用说明
+# ============================================================
+# 
+# 1. 本地开发环境（模型在同一台机器）:
+#    export VLLM_API_BASE="http://localhost:8000"
+#
+# 2. 远程服务器（模型在另一台机器）:
+#    export VLLM_API_BASE="http://192.168.1.100:8000"
+#
+# 3. 使用 HTTPS:
+#    export VLLM_API_BASE="https://api.example.com:8443"
+#    export VLLM_API_SSL=true
+#
+# 4. 测试配置:
+#    python3 test_remote_api.py
+

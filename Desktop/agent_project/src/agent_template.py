@@ -112,39 +112,39 @@ class BaseAgentLogic(ABC):
         os.makedirs(self.screenshot_dir, exist_ok=True)
     
     def capture_screenshot(self, prefix: str = "screenshot") -> Optional[str]:
-        """
-        截取当前屏幕
+    """
+    截取当前屏幕
+    
+    Args:
+        prefix: 截图文件名前缀
         
-        Args:
-            prefix: 截图文件名前缀
-            
-        Returns:
-            截图文件路径，失败返回 None
-        """
-        timestamp = int(time.time())
+    Returns:
+        截图文件路径，失败返回 None
+    """
+    timestamp = int(time.time())
         screenshot_path = os.path.join(self.screenshot_dir, f"{prefix}_{timestamp}.png")
-        
-        try:
+    
+    try:
             # 尝试使用 scrot 截图
             subprocess.run(
                 ["scrot", "-d", "1", screenshot_path],
                 check=True,
                 capture_output=True
             )
-            return screenshot_path
-        except subprocess.CalledProcessError:
-            try:
+        return screenshot_path
+    except subprocess.CalledProcessError:
+    try:
                 # 备选方案：使用 gnome-screenshot
                 subprocess.run(
                     ["gnome-screenshot", "-f", screenshot_path],
                     check=True,
                     capture_output=True
                 )
-                return screenshot_path
+        return screenshot_path
             except Exception as e:
                 print(f"[WARNING] 截图失败: {e}")
-                return None
-    
+    return None
+
     def make_response(
         self,
         status: str,
@@ -152,32 +152,32 @@ class BaseAgentLogic(ABC):
         data: Any = None,
         screenshot_path: Optional[str] = None
     ) -> Dict:
-        """
+    """
         生成标准响应格式
-        
-        Args:
+    
+    Args:
             status: 状态（success/error）
             message: 消息
-            data: 返回数据
+        data: 返回数据
             screenshot_path: 截图路径
-            
-        Returns:
+        
+    Returns:
             标准响应字典
-        """
+    """
         return {
-            "status": status,
+        "status": status,
             "msg": message,
             "data": data or {},
             "screenshot_path": screenshot_path,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
     
     @abstractmethod
     def get_tools(self) -> List[Dict]:
-        """
+    """
         获取工具列表（子类必须实现）
         
-        Returns:
+    Returns:
             工具定义列表
         """
         pass
@@ -211,11 +211,11 @@ class MCPRegistrationManager:
         self.config = agent_config
         self.bus = None
         self.registered = False
-        
-        if HAS_DBUS:
-            DBusGMainLoop(set_as_default=True)
-            self.bus = dbus.SessionBus()
     
+        if HAS_DBUS:
+        DBusGMainLoop(set_as_default=True)
+        self.bus = dbus.SessionBus()
+        
     def register_to_mcp(self, tools: List[Dict]) -> bool:
         """
         注册到 MCP Server
@@ -503,6 +503,6 @@ class TemplateAgentLogic(BaseAgentLogic):
 if __name__ == "__main__":
     # 创建智能体逻辑实例
     logic = TemplateAgentLogic()
-    
+
     # 启动服务
     start_agent(logic, AGENT_CONFIG)

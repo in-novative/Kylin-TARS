@@ -520,7 +520,7 @@ cd Desktop/agent_project && python src/gradio_ui.py
 
 - **v1.1** (2024-12): 记忆模块
   - 协作轨迹存储与检索
-  
+
 - **v1.0** (2024-12): 初始版本
   - Master推理链生成
   - GUI操作生成

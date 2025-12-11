@@ -88,6 +88,117 @@ class FileAgentLogic:
         except Exception as e:
             return {"status": "error", "msg": f"移动失败：{str(e)}", "data": []}
 
+    def batch_rename(self, target_dir: str, rename_rule: str, file_type: str = "", prefix: str = "", suffix: str = "", start_number: int = 1) -> dict:
+        """
+        批量重命名文件
+        
+        Args:
+            target_dir: 目标目录
+            rename_rule: 重命名规则（prefix_seq/date_prefix_seq/suffix_seq/date_suffix_seq）
+            file_type: 文件类型过滤（如".png", ".jpg"，留空表示所有文件）
+            prefix: 前缀（可选）
+            suffix: 后缀（可选）
+            start_number: 起始序号（默认1）
+        
+        Returns:
+            重命名结果字典，包含原文件名到新文件名的映射（用于回滚）
+        """
+        import re
+        
+        # 1. 入参校验
+        if not isinstance(target_dir, str) or not target_dir:
+            return {"status": "error", "msg": "入参错误：target_dir必须是非空字符串", "data": []}
+        
+        target_dir = os.path.expanduser(target_dir)
+        if not os.path.exists(target_dir):
+            return {"status": "error", "msg": f"目标目录不存在：{target_dir}", "data": []}
+        
+        if not os.path.isdir(target_dir):
+            return {"status": "error", "msg": f"路径不是目录：{target_dir}", "data": []}
+        
+        # 2. 获取文件列表
+        files = []
+        try:
+            for item in os.listdir(target_dir):
+                item_path = os.path.join(target_dir, item)
+                if os.path.isfile(item_path):
+                    # 文件类型过滤
+                    if file_type and not item.endswith(file_type):
+                        continue
+                    files.append(item)
+        except Exception as e:
+            return {"status": "error", "msg": f"读取目录失败：{str(e)}", "data": []}
+        
+        if not files:
+            return {"status": "error", "msg": f"目录中没有符合条件的文件", "data": []}
+        
+        # 3. 生成新文件名
+        rename_mapping = []
+        current_number = start_number
+        
+        for old_name in sorted(files):
+            name_part, ext = os.path.splitext(old_name)
+            
+            # 根据规则生成新文件名
+            if rename_rule == "prefix_seq":
+                # 前缀_序号
+                new_name = f"{prefix}_{current_number:04d}{ext}" if prefix else f"{current_number:04d}{ext}"
+            elif rename_rule == "date_prefix_seq":
+                # 日期_前缀_序号
+                date_str = datetime.now().strftime("%Y%m%d")
+                new_name = f"{date_str}_{prefix}_{current_number:04d}{ext}" if prefix else f"{date_str}_{current_number:04d}{ext}"
+            elif rename_rule == "suffix_seq":
+                # 序号_后缀
+                new_name = f"{current_number:04d}_{suffix}{ext}" if suffix else f"{current_number:04d}{ext}"
+            elif rename_rule == "date_suffix_seq":
+                # 日期_序号_后缀
+                date_str = datetime.now().strftime("%Y%m%d")
+                new_name = f"{date_str}_{current_number:04d}_{suffix}{ext}" if suffix else f"{date_str}_{current_number:04d}{ext}"
+            else:
+                return {"status": "error", "msg": f"不支持的重命名规则：{rename_rule}", "data": []}
+            
+            old_path = os.path.join(target_dir, old_name)
+            new_path = os.path.join(target_dir, new_name)
+            
+            # 避免文件名冲突
+            if os.path.exists(new_path) and new_path != old_path:
+                counter = 1
+                base_new_name = new_name
+                while os.path.exists(new_path):
+                    name_part_new, ext_new = os.path.splitext(base_new_name)
+                    new_name = f"{name_part_new}_{counter}{ext_new}"
+                    new_path = os.path.join(target_dir, new_name)
+                    counter += 1
+            
+            rename_mapping.append({
+                "old_name": old_name,
+                "new_name": new_name,
+                "old_path": old_path,
+                "new_path": new_path
+            })
+            current_number += 1
+        
+        # 4. 执行重命名（保留映射用于回滚）
+        renamed_count = 0
+        try:
+            for mapping in rename_mapping:
+                os.rename(mapping["old_path"], mapping["new_path"])
+                renamed_count += 1
+            
+            return {
+                "status": "success",
+                "msg": f"成功重命名 {renamed_count} 个文件",
+                "data": {
+                    "renamed_count": renamed_count,
+                    "rename_mapping": rename_mapping,  # 用于回滚
+                    "target_dir": target_dir,
+                    "rename_rule": rename_rule
+                }
+            }
+        except Exception as e:
+            # 部分重命名失败，尝试回滚
+            return {"status": "error", "msg": f"重命名失败：{str(e)}，已重命名 {renamed_count} 个文件", "data": {"renamed_count": renamed_count, "rename_mapping": rename_mapping}}
+
 if __name__ == "__main__":
     agent = FileAgentLogic()
     

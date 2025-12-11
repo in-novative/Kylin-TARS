@@ -89,7 +89,7 @@ NETWORK_AGENT_TOOLS: List[Dict] = [
                 "socks_proxy": {"type": "string", "description": "SOCKS代理地址"},
                 "user_confirm": {"type": "boolean", "description": "用户确认"}
             }
-        },
+            },
         "permission": "sensitive"
     },
     {
@@ -99,13 +99,34 @@ NETWORK_AGENT_TOOLS: List[Dict] = [
             "type": "object",
             "properties": {
                 "user_confirm": {"type": "boolean", "description": "用户确认"}
-            }
+        }
         },
         "permission": "sensitive"
     },
     {
         "name": "network_agent.get_proxy_status",
         "description": "获取当前代理设置",
+        "parameters": {
+            "type": "object",
+            "properties": {}
+        },
+        "permission": "normal"
+    },
+    {
+        "name": "network_agent.speed_test",
+        "description": "网络测速（支持快速/完整测速切换）",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "test_type": {"type": "string", "enum": ["quick", "full"], "default": "quick", "description": "测速类型（quick约10秒，full约30秒）"}
+            }
+        },
+        "permission": "normal",
+        "extend_type": "new"
+    },
+    {
+        "name": "network_agent.get_network_status",
+        "description": "获取综合网络状态（WiFi/代理/IP）",
         "parameters": {
             "type": "object",
             "properties": {}
@@ -162,6 +183,12 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
             
         elif tool_name == "network_agent.get_proxy_status":
             result = network_agent.get_proxy_status()
+        
+        elif tool_name == "network_agent.speed_test":
+            result = network_agent.speed_test(test_type=params.get("test_type", "quick"))
+            
+        elif tool_name == "network_agent.get_network_status":
+            result = network_agent.get_network_status()
             
         else:
             return {"success": False, "error": f"未知工具：{tool_name}"}
@@ -241,7 +268,7 @@ def register_to_mcp():
         
         result = json.loads(mcp_interface.AgentRegister(register_data))
         if result.get("success"):
-            print("[INFO] NetworkAgent 已成功注册到 MCP Server")
+        print("[INFO] NetworkAgent 已成功注册到 MCP Server")
             print(f"[INFO]   工具: {[t['name'] for t in NETWORK_AGENT_TOOLS]}")
         else:
             print(f"[ERROR] 注册失败: {result.get('error')}")

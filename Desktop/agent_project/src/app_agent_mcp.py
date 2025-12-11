@@ -94,6 +94,21 @@ APP_AGENT_TOOLS: List[Dict] = [
             "required": ["app_name"]
         },
         "permission": "normal"
+    },
+    {
+        "name": "app_agent.app_quick_operation",
+        "description": "应用快捷操作（支持URL参数，如firefox https://www.baidu.com）",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "app_name": {"type": "string", "description": "应用名称（firefox/chrome/微信/终端/文件等）"},
+                "url": {"type": "string", "description": "URL地址（浏览器应用）"},
+                "args": {"type": "array", "items": {"type": "string"}, "description": "启动参数（可选）"}
+            },
+            "required": ["app_name"]
+        },
+        "permission": "normal",
+        "extend_type": "new"
     }
 ]
 
@@ -126,6 +141,13 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
             
         elif tool_name == "app_agent.is_app_running":
             result = app_agent.is_app_running(params["app_name"])
+            
+        elif tool_name == "app_agent.app_quick_operation":
+            result = app_agent.app_quick_operation(
+                app_name=params["app_name"],
+                url=params.get("url"),
+                args=params.get("args", [])
+            )
             
         else:
             return {"success": False, "error": f"未知工具：{tool_name}"}
@@ -205,7 +227,7 @@ def register_to_mcp():
         
         result = json.loads(mcp_interface.AgentRegister(register_data))
         if result.get("success"):
-            print("[INFO] AppAgent 已成功注册到 MCP Server")
+        print("[INFO] AppAgent 已成功注册到 MCP Server")
             print(f"[INFO]   工具: {[t['name'] for t in APP_AGENT_TOOLS]}")
         else:
             print(f"[ERROR] 注册失败: {result.get('error')}")

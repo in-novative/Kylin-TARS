@@ -277,7 +277,7 @@ class NetworkAgentLogic:
                 {"cleared": True},
                 screenshot
             )
-            
+                
         except Exception as e:
             return self.make_response("error", f"清除代理失败: {e}")
     
@@ -326,6 +326,194 @@ class NetworkAgentLogic:
             return addr, 1080  # 默认端口
         except:
             return None, None
+    
+    # ==================== 网络测速功能 ====================
+    
+    def speed_test(self, test_type: str = "quick") -> Dict:
+        """
+        网络测速（集成speedtest-cli）
+        
+        Args:
+            test_type: 测速类型（quick/full）
+                - quick: 快速测速（约10秒）
+                - full: 完整测速（约30秒）
+        """
+        try:
+            # 检查speedtest-cli是否安装
+            try:
+                subprocess.run(["speedtest-cli", "--version"], check=True, capture_output=True, timeout=5)
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                # 如果没有安装，使用ping和wget作为备选方案
+                return self._speed_test_fallback()
+            
+            # 使用speedtest-cli进行测速
+            if test_type == "quick":
+                # 快速测速：使用最近的服务器，单次测试
+                cmd = ["speedtest-cli", "--simple", "--secure"]
+                timeout = 30
+            else:
+                # 完整测速：选择最佳服务器，多次测试
+                cmd = ["speedtest-cli", "--secure"]
+                timeout = 60
+            
+            start_time = time.time()
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            elapsed_time = time.time() - start_time
+            
+            if result.returncode != 0:
+                return self.make_response("error", f"测速失败: {result.stderr.strip()}")
+            
+            # 解析结果
+            speed_data = self._parse_speedtest_output(result.stdout, test_type)
+            speed_data["elapsed_time"] = round(elapsed_time, 2)
+            speed_data["test_type"] = test_type
+            
+            screenshot = self.capture_screenshot("speed_test")
+            
+            return self.make_response(
+                "success",
+                f"测速完成（{test_type}模式，耗时{elapsed_time:.1f}秒）",
+                speed_data,
+                screenshot
+            )
+            
+        except subprocess.TimeoutExpired:
+            return self.make_response("error", f"测速超时（{test_type}模式）")
+        except Exception as e:
+            return self.make_response("error", f"测速失败: {e}")
+    
+    def _parse_speedtest_output(self, output: str, test_type: str) -> Dict:
+        """解析speedtest-cli输出"""
+        speed_data = {
+            "ping": None,
+            "download_mbps": None,
+            "upload_mbps": None,
+            "server": None
+        }
+        
+        try:
+            lines = output.strip().split("\n")
+            for line in lines:
+                line_lower = line.lower()
+                if "ping:" in line_lower:
+                    ping_str = line.split(":")[1].strip().replace("ms", "").strip()
+                    speed_data["ping"] = float(ping_str)
+                elif "download:" in line_lower:
+                    download_str = line.split(":")[1].strip().replace("mbit/s", "").strip()
+                    speed_data["download_mbps"] = float(download_str)
+                elif "upload:" in line_lower:
+                    upload_str = line.split(":")[1].strip().replace("mbit/s", "").strip()
+                    speed_data["upload_mbps"] = float(upload_str)
+                elif "hosted by" in line_lower or "server:" in line_lower:
+                    speed_data["server"] = line.split(":")[-1].strip() if ":" in line else line.strip()
+        except:
+            pass
+        
+        return speed_data
+    
+    def _speed_test_fallback(self) -> Dict:
+        """备选测速方案（使用ping和wget）"""
+        try:
+            # Ping测试延迟
+            ping_result = subprocess.run(
+                ["ping", "-c", "4", "8.8.8.8"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            ping_ms = None
+            if ping_result.returncode == 0:
+                # 解析ping结果
+                for line in ping_result.stdout.split("\n"):
+                    if "min/avg/max" in line:
+                        parts = line.split("=")[1].strip().split("/")
+                        if len(parts) >= 2:
+                            ping_ms = float(parts[1])
+                            break
+            
+            # 下载速度测试（使用wget下载小文件）
+            download_mbps = None
+            try:
+                test_url = "http://speedtest.tele2.net/10MB.zip"
+                start_time = time.time()
+                wget_result = subprocess.run(
+                    ["wget", "-O", "/dev/null", test_url],
+                    capture_output=True,
+                    timeout=30
+                )
+                elapsed = time.time() - start_time
+                
+                if wget_result.returncode == 0 and elapsed > 0:
+                    # 10MB = 80Mbit
+                    download_mbps = round(80 / elapsed, 2)
+            except:
+                pass
+            
+            screenshot = self.capture_screenshot("speed_test_fallback")
+            
+            return self.make_response(
+                "success",
+                "测速完成（备选方案）",
+                {
+                    "ping_ms": ping_ms,
+                    "download_mbps": download_mbps,
+                    "upload_mbps": None,
+                    "test_type": "fallback",
+                    "note": "speedtest-cli未安装，使用备选方案"
+                },
+                screenshot
+            )
+        except Exception as e:
+            return self.make_response("error", f"备选测速方案失败: {e}")
+    
+    def get_network_status(self) -> Dict:
+        """获取网络状态（综合信息）"""
+        try:
+            # WiFi状态
+            wifi_status = self.get_wifi_status()
+            wifi_connected = wifi_status["data"].get("connected", False)
+            wifi_info = wifi_status["data"].get("wifi", {})
+            
+            # 代理状态
+            proxy_status = self.get_proxy_status()
+            proxy_data = proxy_status["data"]
+            
+            # IP地址
+            ip_address = None
+            try:
+                result = subprocess.run(
+                    ["hostname", "-I"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    ip_address = result.stdout.strip().split()[0]
+            except:
+                pass
+            
+            screenshot = self.capture_screenshot("network_status")
+            
+            return self.make_response(
+                "success",
+                "网络状态获取成功",
+                {
+                    "wifi_connected": wifi_connected,
+                    "wifi_ssid": wifi_info.get("name") if wifi_connected else None,
+                    "ip_address": ip_address,
+                    "proxy_enabled": proxy_data.get("mode") == "manual",
+                    "proxy_info": proxy_data
+                },
+                screenshot
+            )
+        except Exception as e:
+            return self.make_response("error", f"获取网络状态失败: {e}")
 
 
 # ============================================================

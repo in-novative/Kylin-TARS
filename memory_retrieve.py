@@ -34,6 +34,34 @@ except ImportError:
     print("提示: fuzzywuzzy 未安装，将使用基础匹配。")
     print("安装命令: pip install fuzzywuzzy python-Levenshtein")
 
+# 尝试导入麒麟AI框架（语义检索）
+HAS_KYLIN_AI = False
+KYLIN_EMBED_MODEL = None
+try:
+    # 检查是否有麒麟AI框架的embedding接口
+    import subprocess
+    result = subprocess.run(["which", "kylin-llm-embed"], capture_output=True, timeout=2)
+    if result.returncode == 0:
+        HAS_KYLIN_AI = True
+        print("✓ 检测到麒麟AI框架，将启用语义检索")
+except:
+    pass
+
+# 如果没有麒麟AI框架，尝试使用其他embedding库（如sentence-transformers）
+if not HAS_KYLIN_AI:
+    try:
+        import sentence_transformers
+        HAS_SENTENCE_TRANSFORMERS = True
+        # 使用轻量级中文模型
+        try:
+            KYLIN_EMBED_MODEL = sentence_transformers.SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+            print("✓ 使用 sentence-transformers 进行语义检索")
+        except:
+            HAS_SENTENCE_TRANSFORMERS = False
+    except ImportError:
+        HAS_SENTENCE_TRANSFORMERS = False
+        print("提示: 未检测到语义检索库，将使用关键词检索")
+
 
 # ============================================================
 # 相似度计算函数
@@ -145,12 +173,110 @@ def calculate_combined_similarity(
 # 核心检索函数
 # ============================================================
 
+def semantic_retrieve(
+    user_task: str,
+    threshold: float = 0.6,
+    limit: int = 50,
+    success_only: bool = True,
+    verbose: bool = True
+) -> List[Tuple[Dict, float]]:
+    """
+    语义检索（使用向量相似度）
+    
+    Args:
+        user_task: 用户任务描述
+        threshold: 相似度阈值（0-1）
+        limit: 最多检索的轨迹数量
+        success_only: 是否只检索成功的轨迹
+        verbose: 是否打印详细信息
+    
+    Returns:
+        [(轨迹, 相似度), ...] 列表，按相似度降序
+    """
+    if not HAS_KYLIN_AI and not HAS_SENTENCE_TRANSFORMERS:
+        if verbose:
+            print("⚠️ 语义检索不可用，回退到关键词检索")
+        # 回退到关键词检索
+        return [(t, s/100.0) for t, s in retrieve_top_k_trajectories(user_task, k=3, limit=limit, success_only=success_only)]
+    
+    trajectories = list_trajectories(limit=limit, success_only=success_only)
+    if not trajectories:
+        return []
+    
+    # 将用户任务转换为向量
+    try:
+        if HAS_KYLIN_AI:
+            # 使用麒麟AI框架
+            import subprocess
+            result = subprocess.run(
+                ["kylin-llm-embed", "--text", user_task],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                query_vector = json.loads(result.stdout)
+            else:
+                return []
+        else:
+            # 使用sentence-transformers
+            query_vector = KYLIN_EMBED_MODEL.encode(user_task).tolist()
+    except Exception as e:
+        if verbose:
+            print(f"⚠️ 向量化失败: {e}，回退到关键词检索")
+        return [(t, s/100.0) for t, s in retrieve_top_k_trajectories(user_task, k=3, limit=limit, success_only=success_only)]
+    
+    # 计算与历史轨迹的相似度
+    scored_trajectories = []
+    for traj in trajectories:
+        history_task = traj.get("task", "")
+        if not history_task:
+            continue
+        
+        try:
+            if HAS_KYLIN_AI:
+                result = subprocess.run(
+                    ["kylin-llm-embed", "--text", history_task],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    history_vector = json.loads(result.stdout)
+                else:
+                    continue
+            else:
+                history_vector = KYLIN_EMBED_MODEL.encode(history_task).tolist()
+            
+            # 计算余弦相似度
+            import numpy as np
+            query_np = np.array(query_vector)
+            history_np = np.array(history_vector)
+            similarity = np.dot(query_np, history_np) / (np.linalg.norm(query_np) * np.linalg.norm(history_np))
+            
+            if similarity >= threshold:
+                scored_trajectories.append((traj, float(similarity)))
+        except Exception as e:
+            if verbose:
+                print(f"⚠️ 计算相似度失败: {e}")
+            continue
+    
+    # 按相似度降序排序
+    scored_trajectories.sort(key=lambda x: x[1], reverse=True)
+    
+    if verbose:
+        print(f"语义检索找到 {len(scored_trajectories)} 条相似轨迹（阈值≥{threshold:.0%}）")
+    
+    return scored_trajectories[:3]  # 返回前3个
+
+
 def retrieve_similar_trajectory(
     user_task: str,
     threshold: int = 70,
     limit: int = 50,
     success_only: bool = True,
-    verbose: bool = True
+    verbose: bool = True,
+    use_semantic: bool = False
 ) -> Optional[Dict]:
     """
     检索最相似的历史轨迹
@@ -173,8 +299,24 @@ def retrieve_similar_trajectory(
         print(f"{'='*60}")
         print(f"当前任务: {user_task}")
         print(f"匹配阈值: {threshold}")
+        print(f"检索模式: {'语义检索' if use_semantic else '关键词检索'}")
     
-    # 获取历史轨迹
+    # 如果启用语义检索且可用
+    if use_semantic and (HAS_KYLIN_AI or HAS_SENTENCE_TRANSFORMERS):
+        semantic_results = semantic_retrieve(
+            user_task=user_task,
+            threshold=threshold/100.0,
+            limit=limit,
+            success_only=success_only,
+            verbose=verbose
+        )
+        if semantic_results:
+            best_match, best_score = semantic_results[0]
+            if verbose:
+                print(f"\n✓ 语义检索找到匹配轨迹（相似度: {best_score:.2%}）")
+            return best_match
+    
+    # 获取历史轨迹（关键词检索）
     trajectories = list_trajectories(limit=limit, success_only=success_only)
     
     if not trajectories:

@@ -46,6 +46,20 @@ SETTINGS_AGENT_TOOLS: List[Dict] = [
             },
             "required": ["volume"]
         }
+    },
+    {
+        "name": "settings_agent.bluetooth_manage",
+        "description": "蓝牙管理（开启/关闭/连接已配对设备/查询状态）",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["enable", "disable", "connect", "status"], "description": "操作类型"},
+                "device_name": {"type": "string", "description": "设备名称（连接时必需）"}
+            },
+            "required": ["action"]
+        },
+        "permission": "normal",
+        "extend_type": "new"
     }
 ]
 
@@ -67,6 +81,11 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
             result = settings_agent.adjust_volume(
                 volume=params["volume"],
                 device=params.get("device", "@DEFAULT_SINK@")
+            )
+        elif tool_name == "settings_agent.bluetooth_manage":
+            result = settings_agent.bluetooth_manage(
+                action=params["action"],
+                device_name=params.get("device_name")
             )
         else:
             return {"success": False, "error": f"工具不存在：{tool_name}"}
