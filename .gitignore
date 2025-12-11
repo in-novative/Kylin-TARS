@@ -22,8 +22,8 @@ ENV/
 *~
 
 # 日志文件
+log/
 *.log
-mcp_server.log
 
 # 截图和临时文件
 screenshots/

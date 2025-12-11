@@ -87,7 +87,7 @@ Kylin-TARS/
 │   ├── media_agent_mcp.py          # MediaAgent MCP 服务
 │   └── gradio_upgrade.py           # 升级版 Gradio UI
 ├── mcp_system/mcp_server/
-│   └── mcp_server_fixed.py         # MCP Server（主控）
+│   └── mcp_server.py               # MCP Server（主控）
 ├── start_upgrade.sh                # 升级版启动脚本
 ├── test_upgrade.sh                 # 功能测试脚本
 ├── test_all_upgrades.sh            # 全面升级测试脚本
@@ -289,13 +289,13 @@ export GRADIO_SERVER_PORT=7870
 ```
 ┌─────────────────────────────────────────┐
 │         Gradio Web UI (前端)             │
-│    gradio_upgrade.py                    │
+│        gradio_upgrade.py                │
 └──────────────┬──────────────────────────┘
                │
                ▼
-┌─────────────────────────────────────────┐
+┌────────────────────────────────────────┐
 │         MCP Server (主控)               │
-│    mcp_server_fixed.py                  │
+│         mcp_server.py                  │
 └──────┬──────┬──────┬──────┬────────────┘
        │      │      │      │
        ▼      ▼      ▼      ▼

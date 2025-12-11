@@ -68,7 +68,7 @@ dbus-run-session -- /bin/bash -c "
     echo '[Step 1] 启动 MCP Server'
     echo '=========================================='
     
-    '$PYTHON_EXEC' '$PROJECT_ROOT/mcp_system/mcp_server/mcp_server_fixed.py' &
+    '$PYTHON_EXEC' '$PROJECT_ROOT/mcp_system/mcp_server/mcp_server.py' &
     MCP_PID=\$!
     echo \"MCP Server PID: \$MCP_PID\"
     /bin/sleep 2

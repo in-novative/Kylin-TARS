@@ -37,6 +37,7 @@ fi
 
 # 设置默认值
 export VLLM_API_BASE="${VLLM_API_BASE:-http://localhost:8000}"
+export PYTHONPATH="$PROJECT_ROOT:$PROJECT_ROOT/mcp_system:$PROJECT_ROOT/Desktop/agent_project:$PYTHONPATH"
 
 echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${PURPLE}║                                                              ║${NC}"
@@ -68,7 +69,7 @@ dbus-run-session -- /bin/bash -c "
     export PATH='$FULL_PATH'
     
     echo -e '${GREEN}[1/6] 启动 MCP Server${NC}'
-    '$PYTHON_EXEC' '$PROJECT_ROOT/mcp_system/mcp_server/mcp_server_fixed.py' &
+    '$PYTHON_EXEC' '$PROJECT_ROOT/mcp_system/mcp_server/mcp_server.py' &
     MCP_PID=\$!
     /bin/sleep 3
     

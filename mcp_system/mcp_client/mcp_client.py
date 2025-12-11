@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 # mcp_client.py
+import os
 import dbus
 import json
 import time
 import logging
-from agent_registry import InitDb, UpsertAgent, ListAgents
+from mcp_client.agent_registry import InitDb, ListAgents, UpsertAgent
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - MCP Client - %(levelname)s - %(message)s")
-log = logging.getLogger("MCP Client")
+logger = logging.getLogger("MCP Client")
 
-CANDIDATE_AGENTS = [
-    {
-        "name"      : "FileAgent",
-        "service"   : "com.kylin.ai.mcp.FileAgent",
-        "path"      : "/com/kylin/ai/mcp/FileAgent",
-        "interface" : "com.kylin.ai.mcp.FileAgent",
-    },
-]
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    config = json.load(f)
+
+for i in config:
+    if i.get("item")=="ChildAgent":
+        CANDIDATE_AGENTS = i.get("content", [])
+        break
+if CANDIDATE_AGENTS is None:
+    logger.warning("can't find any ChildAgent, please check config.json")
 
 def PingAgent(service: str, path: str, iface: str) -> bool:
     """Check if Agent is accessible"""
@@ -29,7 +34,7 @@ def PingAgent(service: str, path: str, iface: str) -> bool:
         ret = interface.Ping()
         return json.loads(ret).get("status") == "ok"
     except Exception as e:
-        log.debug("Ping %s failed: %s", service, e)
+        logger.debug("Ping %s failed: %s", service, e)
         return False
 
 def DiscoverAgents(candidates: list[dict]) -> dict:
@@ -46,28 +51,29 @@ def DiscoverAgents(candidates: list[dict]) -> dict:
             tools = json.loads(iface.ToolsList())["tools"]
             caps = [t["name"] for t in tools]
 
-            upsert_agent(name=name,
+            UpsertAgent(name=name,
                          service=ag["service"],
                          path=ag["path"],
                          interface=ag["interface"],
                          caps=caps)
             discovered += 1
             details.append({"name": name, "status": "registered", "caps": caps})
-            log.info("%s discovered & registered (%d caps).", name, len(caps))
+            logger.info("%s discovered & registered (%d caps).", name, len(caps))
         else:
             details.append({"name": name, "status": "offline"})
-            log.warning("%s not responding.", name)
+            logger.warning("%s not responding.", name)
     return {"discovered": discovered, "details": details}
 
 def PrintRegistry():
     for ag in ListAgents():
-        log.info("Agent: %s | service: %s | caps: %s",
+        logger.info("Agent: %s | service: %s | caps: %s",
                  ag["name"], ag["service"], json.loads(ag["capabilities"]))
+
 
 def main():
     InitDb()
-    log.info("MCP Client start scanning...")
-    DiscoverFileAgent()
+    logger.info("MCP Client start scanning...")
+    DiscoverAgents(CANDIDATE_AGENTS)
     PrintRegistry()
 
 if __name__ == "__main__":

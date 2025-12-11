@@ -74,7 +74,7 @@ fi
 echo -e "\n${GREEN}[Step 1] 启动 MCP Server${NC}"
 echo "----------------------------------------"
 
-MCP_SERVER_SCRIPT="$PROJECT_ROOT/mcp_system/mcp_server/mcp_server_fixed.py"
+MCP_SERVER_SCRIPT="$PROJECT_ROOT/mcp_system/mcp_server/mcp_server.py"
 
 if [ ! -f "$MCP_SERVER_SCRIPT" ]; then
     echo -e "${RED}❌ MCP Server 脚本不存在: $MCP_SERVER_SCRIPT${NC}"
@@ -115,7 +115,7 @@ dbus-run-session -- /bin/bash -c "
     echo ''
     echo '[Step 2] 注册子智能体'
     echo '----------------------------------------'
-    '$PYTHON_EXEC' '$PROJECT_ROOT/agent_adapter.py'
+    '$PYTHON_EXEC' '$PROJECT_ROOT/agent_register.py'
     
     # 运行全链路测试
     echo ''

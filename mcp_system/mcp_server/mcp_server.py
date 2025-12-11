@@ -6,6 +6,8 @@ This module implements the MCP Server that exposes capabilities via DBus
 and handles tool listing and tool calling requests.
 """
 
+import os
+import os
 import dbus
 import dbus.service
 import dbus.mainloop.glib
@@ -15,29 +17,20 @@ import time
 from threading import Thread
 from gi.repository import GLib
 from typing import Dict, List, Any, Optional, Callable
+from mcp_client.agent_registry import InitDb, UpsertAgent, RemoveAgent, ListAgents, AgentByName
+from utils.set_logger import set_logger
+from utils.get_config import get_master_config
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("mcp_server.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("MCP Server")
+logger = set_logger("mcp_server")
+MASTERAGENT = get_master_config()
 
 # DBus constants
-DBUS_SERVICE_NAME = "com.kylin.ai.mcp.MasterAgent"
-# MCP 主智能体在DBus总线上的服务唯一标识，用于在总线中 “发现” 这个服务进程
-DBUS_OBJECT_PATH = "/com/kylin/ai/mcp/MasterAgent"
-# MCP 主智能体进程内具体对象的路径标识，用于定位进程内暴露的 “服务对象”
-DBUS_INTERFACE_NAME = "com.kylin.ai.mcp.MasterAgent"
-# MCP 主智能体对象暴露的方法/信号集合的标识，定义了客户端可调用的 “功能契约”
+DBUS_SERVICE_NAME = MASTERAGENT["SERVICE_NAME"]
+DBUS_OBJECT_PATH = MASTERAGENT["OBJECT_PATH"]
+DBUS_INTERFACE_NAME = MASTERAGENT["INTERFACE_NAME"]
 
 class MCPTool:
     """Represents a tool that can be called via MCP"""
-    
     def __init__(self, name: str, description: str, handler: Callable, 
                  parameters: Dict[str, Any], examples: List[Dict[str, Any]]):
         """
@@ -69,23 +62,20 @@ class MCPTool:
         """Call the tool with given parameters"""
         try:
             result = self.handler(**kwargs)
-            return {
+            return json.dumps({
                 "success": True,
-                "result": result,
-                "error": None
-            }
+                "result": result
+            })
         except Exception as e:
             logger.error(f"Error calling tool {self.name}: {str(e)}")
-            return {
+            return json.dumps({
                 "success": False,
-                "result": None,
                 "error": str(e)
-            }
+            })
 
 
 class MCPServer(dbus.service.Object):
     """MCP Server implementation using DBus"""
-    
     def __init__(self):
         """Initialize MCP Server"""
         # Initialize DBus connection
@@ -94,9 +84,6 @@ class MCPServer(dbus.service.Object):
         
         # Dictionary to store available tools
         self.tools: Dict[str, MCPTool] = {}
-        
-        # Dictionary to store child agents
-        self.child_agents: Dict[str, Dict[str, Any]] = {}
         
         # Heartbeat timestamp
         self.last_heartbeat = time.time()
@@ -107,16 +94,20 @@ class MCPServer(dbus.service.Object):
     def DBusType(self) -> str:
         """Return type of DBus, including session and system"""
         self.last_heartbeat = time.time()
-        
-        return json.dumps({
-            "type": isinstance(bus, dbus.SessionBus) ? "session" : "system"
-        })
+        bus = dbus.SessionBus()
+        if isinstance(bus, dbus.SessionBus):
+            return json.dumps({
+                "type": "session"
+            })
+        else:
+            return json.dumps({
+                "type": "system"
+            })
 
     @dbus.service.method(DBUS_INTERFACE_NAME, in_signature='', out_signature='s')
     def ServiceName(self) -> str:
         """Return name of DBus Service"""
         self.last_heartbeat = time.time()
-
         return json.dumps({
             "name": DBUS_SERVICE_NAME
         })
@@ -125,16 +116,14 @@ class MCPServer(dbus.service.Object):
     def ObjectPath(self) -> str:
         """Return path of DBus object"""
         self.last_heartbeat = time.time()
-
         return json.dumps({
             "path": DBUS_OBJECT_PATH
         })
 
     @dbus.service.method(DBUS_INTERFACE_NAME, in_signature='', out_signature='s')
-    def InterfaceName(self) ->:
+    def InterfaceName(self) -> str:
         """Return name of DBus interface"""
         self.last_heartbeat = time.time()
-
         return json.dumps({
             "name": DBUS_INTERFACE_NAME
         })
@@ -153,19 +142,17 @@ class MCPServer(dbus.service.Object):
     def ToolsList(self) -> str:
         """List all available tools"""
         self.last_heartbeat = time.time()
-        
         try:
+            tools_list = []
             # Get tools from this agent
-            tools_list = [tool.to_dict() for tool in self.tools.values()]
+            for tool_name in self.tools.values():
+                tools_list.append(f"MasterAgent.{tool_name}")
             
             # Get tools from child agents
-            for agent_name, agent_info in self.child_agents.items():
-                if "tools" in agent_info:
-                    for tool in agent_info["tools"]:
-                        # Add agent name prefix to tool name to avoid conflicts
-                        tool["name"] = f"{agent_name}.{tool['name']}"
-                        tool["agent"] = agent_name
-                        tools_list.append(tool)
+            for agent in ListAgents():
+                for tool in agent["tools"]:
+                    # Add agent name prefix to tool name to avoid conflicts
+                    tools_list.append(tool["name"])
             
             return json.dumps({
                 "success": True,
@@ -193,7 +180,7 @@ class MCPServer(dbus.service.Object):
                 agent_name, actual_tool_name = tool_name.split(".", 1)
                 
                 # Check if agent exists
-                if agent_name not in self.child_agents:
+                if agent_name not in ListAgents():
                     return json.dumps({
                         "success": False,
                         "error": f"Agent '{agent_name}' not found"
@@ -210,8 +197,7 @@ class MCPServer(dbus.service.Object):
                     })
                 
                 # Call the local tool
-                result = self.tools[tool_name].call(**parameters)
-                return json.dumps(result)
+                return self.tools[tool_name].call(**parameters)
                 
         except json.JSONDecodeError as e:
             return json.dumps({
@@ -229,7 +215,6 @@ class MCPServer(dbus.service.Object):
     def AgentRegister(self, agent_info_json: str) -> str:
         """Register a child agent"""
         self.last_heartbeat = time.time()
-        
         try:
             agent_info = json.loads(agent_info_json)
             
@@ -243,16 +228,14 @@ class MCPServer(dbus.service.Object):
                     })
             
             # Register the agent
-            agent_name = agent_info["name"]
-            self.child_agents[agent_name] = {
-                **agent_info,
-                "last_seen": time.time()
-            }
+            agent_info["last_seen"] = time.time()
+            logger.info(f"agent info : {agent_info.keys()}")
+            UpsertAgent(**agent_info)
             
-            logger.info(f"Child agent registered: {agent_name}")
+            logger.info(f"Child agent registered: {agent_info['name']}")
             return json.dumps({
                 "success": True,
-                "message": f"Agent '{agent_name}' registered successfully"
+                "message": f"Agent {agent_info['name']} registered successfully"
             })
             
         except json.JSONDecodeError as e:
@@ -271,10 +254,10 @@ class MCPServer(dbus.service.Object):
     def AgentUnregister(self, agent_name: str) -> str:
         """Unregister a child agent"""
         self.last_heartbeat = time.time()
-        
         try:
-            if agent_name in self.child_agents:
-                del self.child_agents[agent_name]
+            exists = (any(item.get("name") == agent_name for item in ListAgents()))
+            if exists:
+                RemoveAgent(agent_name)
                 logger.info(f"Child agent unregistered: {agent_name}")
                 return json.dumps({
                     "success": True,
@@ -296,23 +279,24 @@ class MCPServer(dbus.service.Object):
     def AgentsList(self) -> str:
         """List all registered child agents"""
         self.last_heartbeat = time.time()
-        
         try:
             agents_list = []
-            current_time = time.time()
             
-            for agent_name, agent_info in self.child_agents.items():
-                # Check if agent is alive (last seen within 60 seconds)
-                is_alive = (current_time - agent_info.get("last_seen", 0)) < 60
-                
+            bus = dbus.SessionBus()
+            for agent in ListAgents():
+                proxy = bus.get_object(agent["service"], agent["path"])
+                interface = dbus.Interface(proxy, agent["interface"])
+                is_alive = json.loads(interface.Ping()).get("status") == "ok"
+
+                if is_alive:
+                    agent["last_seen"] = time.time()
+                    UpsertAgent(**agent)
+                else:
+                    logger.warning(f"can't ping childAgent {agent['name']}, please check whether it's still alive")
+
                 agents_list.append({
-                    "name": agent_name,
-                    "service": agent_info.get("service", ""),
-                    "path": agent_info.get("path", ""),
-                    "interface": agent_info.get("interface", ""),
-                    "tools_count": len(agent_info.get("tools", [])),
-                    "last_seen": agent_info.get("last_seen", 0),
-                    "is_alive": is_alive
+                    **agent,
+                    "is_alive":is_alive
                 })
             
             return json.dumps({
@@ -330,24 +314,33 @@ class MCPServer(dbus.service.Object):
     def _call_child_agent_tool(self, agent_name: str, tool_name: str, parameters: Dict[str, Any]) -> str:
         """Call a tool on a child agent"""
         try:
-            agent_info = self.child_agents[agent_name]
-            
-            # Check if agent is alive
-            if (time.time() - agent_info.get("last_seen", 0)) > 60:
-                return json.dumps({
-                    "success": False,
-                    "error": f"Agent '{agent_name}' is not responding"
-                })
+            agent_info = AgentByName(agent_name)
             
             # Connect to the child agent's DBus service
             bus = dbus.SessionBus()
             proxy = bus.get_object(agent_info["service"], agent_info["path"])
             interface = dbus.Interface(proxy, agent_info["interface"])
             
-            # Call the tool on the child agent
-            result = interface.ToolsCall(tool_name, json.dumps(parameters))
-            return result
-            
+            # Check if agent is alive
+            is_alive = json.loads(interface.Ping()).get("status") == "ok"
+
+            if is_alive:
+                # Update last_seen time of child Agent
+                agent_info["last_seen"] = time.time()
+                UpsertAgent(**agent_info)
+
+                # Call the tool on the child agent
+                result = interface.ToolsCall(tool_name, json.dumps(parameters))
+                return json.dumps({
+                    "success": True,
+                    "result": result
+                })
+            else:
+                logger.warning(f"can't ping childAgent {agent_name}, please check whether it's still alive")
+                return json.dumps({
+                    "success": False
+                })
+
         except dbus.DBusException as e:
             logger.error(f"DBus error calling child agent {agent_name}: {str(e)}")
             return json.dumps({
@@ -385,17 +378,22 @@ class MCPServer(dbus.service.Object):
     
     def _check_agent_heartbeats(self):
         """Check and remove inactive agents"""
-        current_time = time.time()
-        inactive_agents = []
-        
-        for agent_name, agent_info in self.child_agents.items():
-            if (current_time - agent_info.get("last_seen", 0)) > 60:
-                inactive_agents.append(agent_name)
-        
-        for agent_name in inactive_agents:
-            logger.warning(f"Removing inactive agent: {agent_name}")
-            del self.child_agents[agent_name]
+        try:
+            bus = dbus.SessionBus()
+            for agent in ListAgents():
+                proxy = bus.get_object(agent["service"], agent["path"])
+                interface = dbus.Interface(proxy, agent["interface"])
 
+                # Check if agent is alive
+                is_alive = json.loads(interface.Ping()).get("status") == "ok"
+
+                if is_alive:
+                    # Update last_seen time of child Agent
+                    agent["last_seen"] = time.time()
+                    UpsertAgent(**agent)
+        except Exception as e:
+            logging.warning("Agent %s offline: %s", agent["name"], e)
+            
 
 def main():
     """Main function to start the MCP Server"""
@@ -442,6 +440,7 @@ def main():
         logger.info(f"Interface name: {DBUS_INTERFACE_NAME}")
         
         # Run the main loop
+        InitDb()
         mainloop = GLib.MainLoop()
         mainloop.run()
         

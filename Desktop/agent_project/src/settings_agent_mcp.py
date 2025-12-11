@@ -5,16 +5,9 @@ import dbus
 from dbus.mainloop.glib import DBusGMainLoop
 from typing import Dict, List
 from gi.repository import GLib
-
-# 项目路径配置
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.settings_agent_logic import SettingsAgentLogic
-
-# ===================== MCP Server DBus配置 =====================
-# 使用成员A的MCP Server配置（统一标准）
-MCP_BUS_NAME = "com.kylin.ai.mcp.MasterAgent"
-MCP_OBJECT_PATH = "/com/kylin/ai/mcp/MasterAgent"
-MCP_INTERFACE = "com.kylin.ai.mcp.MasterAgent"
+from utils.set_logger import set_logger
+from utils.get_config import get_master_config, get_child_config
 
 # ===================== SettingsAgent DBus配置 =====================
 AGENT_BUS_NAME = "com.mcp.agent.settings"
@@ -88,23 +81,28 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
                 device_name=params.get("device_name")
             )
         else:
-            return {"success": False, "error": f"工具不存在：{tool_name}"}
-        
-        return {
+            return json.dumps({
+                "success": False,
+                "error": f"工具不存在：{tool_name}"
+            })
+    
+        return json.dumps({
             "success": result["status"] == "success",
             "result": result["data"],
             "msg": result["msg"]
-        }
+        })
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        })
 
 # ===================== DBus消息处理 =====================
 def message_handler(bus, message):
     """处理DBus消息（替代dbus.service.method）"""
     # 检查消息类型和接口
-    if message.get_type() != dbus.lowlevel.METHOD_CALL:
+    if not isinstance(message, dbus.lowlevel.MethodCallMessage):
         return
-    
     if message.get_interface() != AGENT_INTERFACE:
         return
     
@@ -142,32 +140,37 @@ def message_handler(bus, message):
         )
 
 # ===================== MCP注册逻辑 =====================
-def register_to_mcp():
+def register_to_mcp(logger):
     """注册到MCP Server"""
+    MASTERAGENT = get_master_config()
+    DBUS_SERVICE_NAME = MASTERAGENT["SERVICE_NAME"]
+    DBUS_OBJECT_PATH = MASTERAGENT["OBJECT_PATH"]
+    DBUS_INTERFACE_NAME = MASTERAGENT["INTERFACE_NAME"]
     try:
         # 检查MCP Server是否可用
-        if not bus.name_has_owner(MCP_BUS_NAME):
-            print(f"[WARNING] MCP Server ({MCP_BUS_NAME}) 未启动，跳过注册")
+        if not bus.name_has_owner(DBUS_SERVICE_NAME):
+            logger.warning(f"MCP Server ({DBUS_SERVICE_NAME}) 未启动，跳过注册")
             return
         
-        mcp_proxy = bus.get_object(MCP_BUS_NAME, MCP_OBJECT_PATH)
-        mcp_interface = dbus.Interface(mcp_proxy, MCP_INTERFACE)
+        mcp_proxy = bus.get_object(DBUS_SERVICE_NAME, DBUS_OBJECT_PATH)
+        DBUS_INTERFACE_NAME = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
         
         register_data = json.dumps({
-            "agent_name": "settings_agent",
-            "bus_name": AGENT_BUS_NAME,
-            "object_path": AGENT_OBJECT_PATH,
+            "name": "settings_agent",
+            "service": AGENT_BUS_NAME,
+            "path": AGENT_OBJECT_PATH,
             "interface": AGENT_INTERFACE,
             "tools": SETTINGS_AGENT_TOOLS
         })
-        mcp_interface.AgentRegister(register_data)
-        print("[INFO] SettingsAgent已成功注册到MCP Server")
+        DBUS_INTERFACE_NAME.AgentRegister(register_data)
+        logger.info("SettingsAgent已成功注册到MCP Server")
     except Exception as e:
-        print(f"[ERROR] 注册到MCP Server失败：{str(e)}")
+        logger.error(f"注册到MCP Server失败：{str(e)}")
 
 # ===================== 启动服务 =====================
 if __name__ == "__main__":
-    print("[INFO] 启动SettingsAgent MCP服务")
+    logger = set_logger("monitor_agent")
+    logger.info("启动SettingsAgent MCP服务")
     
     # 请求DBus服务名
     bus.request_name(AGENT_BUS_NAME)
@@ -176,12 +179,12 @@ if __name__ == "__main__":
     bus.add_message_filter(message_handler)
     
     # 注册到MCP Server
-    register_to_mcp()
+    register_to_mcp(logger)
     
     # 启动主循环
     loop = GLib.MainLoop()
     try:
         loop.run()
     except KeyboardInterrupt:
-        print("\n[INFO] 服务已停止")
+        logger.info("Setting Agent 服务已停止")
         loop.quit()

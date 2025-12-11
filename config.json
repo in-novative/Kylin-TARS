@@ -1,0 +1,69 @@
+[
+    {
+        "item": "MasterAgent",
+        "content": 
+        {
+            "AGENT_NAME": "MasterAgent",
+            "SERVICE_NAME": "com.kylin.mcp.MasterAgent",
+            "OBJECT_PATH": "/com/kylin/mcp/MasterAgent",
+            "INTERFACE_NAME": "com.kylin.mcp.MasterAgent",
+            "comment": "MasterAgent配置信息, 注意所有小写key对应的内容都仅用于描述, 不在项目实际运行中使用",
+            "description": ""
+        }
+    },
+
+    {
+        "item": "ChildAgent",
+        "content":
+        [
+            {
+                "AGENT_NAME": "MediaAgent",
+                "AGENT_BUS_NAME": "com.mcp.agent.media",
+                "AGENT_OBJECT_PATH": "/com/mcp/agent/media",
+                "AGENT_INTERFACE": "com.mcp.agent.media.Interface",
+                "comment": "MediaAgent配置信息",
+                "description": ""
+            },
+            {
+                "AGENT_NAME": "AppAgent",
+                "AGENT_BUS_NAME": "com.mcp.agent.app",
+                "AGENT_OBJECT_PATH": "/com/mcp/agent/app",
+                "AGENT_INTERFACE": "com.mcp.agent.app.Interface",
+                "comment": "AppAgent配置信息",
+                "description": ""
+            },
+            {
+                "AGENT_NAME": "FileAgent",
+                "AGENT_BUS_NAME": "com.mcp.agent.file",
+                "AGENT_OBJECT_PATH": "/com/mcp/agent/file",
+                "AGENT_INTERFACE": "com.mcp.agent.file.Interface",
+                "comment": "FileAgent配置信息",
+                "description": ""
+            },
+            {
+                "AGENT_NAME": "MonitorAgent",
+                "AGENT_BUS_NAME": "com.mcp.agent.monitor",
+                "AGENT_OBJECT_PATH": "/com/mcp/agent/monitor",
+                "AGENT_INTERFACE": "com.mcp.agent.monitor.Interface",
+                "comment": "MonitorAgent配置信息",
+                "description": ""
+            }, 
+            {
+                "AGENT_NAME": "NetWorkAgent",
+                "AGENT_BUS_NAME": "com.mcp.agent.network",
+                "AGENT_OBJECT_PATH": "/com/mcp/agent/network",
+                "AGENT_INTERFACE": "com.mcp.agent.network.Interface",
+                "comment": "NetworkAgent配置信息",
+                "description": ""
+            },
+            {
+                "AGENT_NAME": "SettingAgent",
+                "AGENT_BUS_NAME": "com.mcp.agent.setting",
+                "AGENT_OBJECT_PATH": "/com/mcp/agent/setting",
+                "AGENT_INTERFACE": "com.mcp.agent.setting.Interface",
+                "comment": "SettingAgent配置信息",
+                "description": ""
+            }
+        ]
+    }
+]

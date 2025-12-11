@@ -10,8 +10,6 @@ NetworkAgent MCP 服务 - 网络管理智能体
 5. network_agent.set_proxy - 设置代理 (敏感)
 6. network_agent.clear_proxy - 清除代理 (敏感)
 7. network_agent.get_proxy_status - 获取代理状态
-
-作者：GUI Agent Team
 """
 
 import sys
@@ -21,15 +19,9 @@ import dbus
 from dbus.mainloop.glib import DBusGMainLoop
 from typing import Dict, List
 from gi.repository import GLib
-
-# 项目路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.network_agent_logic import NetworkAgentLogic
-
-# ===================== MCP Server DBus配置 =====================
-MCP_BUS_NAME = "com.kylin.ai.mcp.MasterAgent"
-MCP_OBJECT_PATH = "/com/kylin/ai/mcp/MasterAgent"
-MCP_INTERFACE = "com.kylin.ai.mcp.MasterAgent"
+from utils.set_logger import set_logger
+from utils.get_config import get_master_config, get_child_config
 
 # ===================== NetworkAgent DBus配置 =====================
 AGENT_BUS_NAME = "com.mcp.agent.network"
@@ -147,71 +139,70 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
         # WiFi 功能
         if tool_name == "network_agent.list_wifi":
             result = network_agent.list_wifi()
-            
         elif tool_name == "network_agent.connect_wifi":
             result = network_agent.connect_wifi(
                 ssid=params["ssid"],
                 password=params.get("password")
             )
-            
         elif tool_name == "network_agent.disconnect_wifi":
             result = network_agent.disconnect_wifi()
-            
         elif tool_name == "network_agent.get_wifi_status":
             result = network_agent.get_wifi_status()
-        
         # 代理功能（敏感操作需确认）
         elif tool_name == "network_agent.set_proxy":
             if not params.get("user_confirm", False):
-                return {
+                return json.dumps({
                     "success": False,
                     "error": "敏感操作需要用户确认（user_confirm=true）"
-                }
+                })
             result = network_agent.set_proxy(
                 http_proxy=params.get("http_proxy"),
                 https_proxy=params.get("https_proxy"),
                 socks_proxy=params.get("socks_proxy")
             )
-            
         elif tool_name == "network_agent.clear_proxy":
             if not params.get("user_confirm", False):
-                return {
+                return json.dumps({
                     "success": False,
                     "error": "敏感操作需要用户确认（user_confirm=true）"
-                }
+                })
             result = network_agent.clear_proxy()
-            
         elif tool_name == "network_agent.get_proxy_status":
             result = network_agent.get_proxy_status()
-        
         elif tool_name == "network_agent.speed_test":
             result = network_agent.speed_test(test_type=params.get("test_type", "quick"))
-            
         elif tool_name == "network_agent.get_network_status":
             result = network_agent.get_network_status()
-            
         else:
-            return {"success": False, "error": f"未知工具：{tool_name}"}
+            return json.dumps({
+                "success": False,
+                "error": f"未知工具：{tool_name}"
+            })
         
-        return {
+        return json.dumps({
             "success": result["status"] == "success",
             "result": result["data"],
             "msg": result["msg"],
             "screenshot_path": result.get("screenshot_path"),
             "error": result["msg"] if result["status"] == "error" else None
-        }
+        })
         
     except KeyError as e:
-        return {"success": False, "error": f"缺少必填参数：{e}"}
+        return json.dumps({
+            "success": False,
+            "error": f"缺少必填参数：{e}"
+        })
     except Exception as e:
-        return {"success": False, "error": f"工具调用失败：{e}"}
+        return json.dumps({
+            "success": False,
+            "error": f"工具调用失败：{e}"
+        })
 
 # ===================== D-Bus 消息处理 =====================
 def message_handler(bus, message):
     """处理 D-Bus 消息"""
-    if message.get_type() != dbus.lowlevel.METHOD_CALL:
+    if not isinstance(message, dbus.lowlevel.MethodCallMessage):
         return
-    
     if message.get_interface() != AGENT_INTERFACE:
         return
     
@@ -245,40 +236,42 @@ def message_handler(bus, message):
         )
 
 # ===================== MCP 注册 =====================
-def register_to_mcp():
+def register_to_mcp(logger):
     """注册到 MCP Server"""
+    MASTERAGENT = get_master_config()
+    DBUS_SERVICE_NAME = MASTERAGENT["SERVICE_NAME"]
+    DBUS_OBJECT_PATH = MASTERAGENT["OBJECT_PATH"]
+    DBUS_INTERFACE_NAME = MASTERAGENT["INTERFACE_NAME"]
     try:
-        if not bus.name_has_owner(MCP_BUS_NAME):
-            print(f"[WARNING] MCP Server ({MCP_BUS_NAME}) 未启动，跳过注册")
+        if not bus.name_has_owner(DBUS_SERVICE_NAME):
+            logger(f"[WARNING] MCP Server ({DBUS_SERVICE_NAME}) 未启动，跳过注册")
             return
         
-        mcp_proxy = bus.get_object(MCP_BUS_NAME, MCP_OBJECT_PATH)
-        mcp_interface = dbus.Interface(mcp_proxy, MCP_INTERFACE)
+        mcp_proxy = bus.get_object(DBUS_SERVICE_NAME, DBUS_OBJECT_PATH)
+        DBUS_INTERFACE_NAME = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
         
         register_data = json.dumps({
             "name": "network_agent",
-            "agent_name": "network_agent",
-            "bus_name": AGENT_BUS_NAME,
             "service": AGENT_BUS_NAME,
-            "object_path": AGENT_OBJECT_PATH,
             "path": AGENT_OBJECT_PATH,
             "interface": AGENT_INTERFACE,
             "tools": NETWORK_AGENT_TOOLS
         })
         
-        result = json.loads(mcp_interface.AgentRegister(register_data))
+        result = json.loads(DBUS_INTERFACE_NAME.AgentRegister(register_data))
         if result.get("success"):
-        print("[INFO] NetworkAgent 已成功注册到 MCP Server")
-            print(f"[INFO]   工具: {[t['name'] for t in NETWORK_AGENT_TOOLS]}")
+            logger.info("NetworkAgent 已成功注册到 MCP Server")
+            logger.info(f"工具: {[t['name'] for t in NETWORK_AGENT_TOOLS]}")
         else:
-            print(f"[ERROR] 注册失败: {result.get('error')}")
+            logger.error(f"注册失败: {result.get('error')}")
             
     except Exception as e:
-        print(f"[ERROR] 注册到 MCP Server 失败：{e}")
+        logger.error(f"[ERROR] 注册到 MCP Server 失败：{e}")
 
 # ===================== 启动服务 =====================
 if __name__ == "__main__":
-    print("[INFO] 启动 NetworkAgent MCP 服务")
+    logger = set_logger("monitor_agent")
+    logger.info("启动 NetworkAgent MCP 服务")
     
     # 请求 D-Bus 服务名
     bus.request_name(AGENT_BUS_NAME)
@@ -287,13 +280,13 @@ if __name__ == "__main__":
     bus.add_message_filter(message_handler)
     
     # 注册到 MCP
-    register_to_mcp()
+    register_to_mcp(logger)
     
     # 启动主循环
     loop = GLib.MainLoop()
     try:
-        print("[INFO] NetworkAgent 服务已启动，等待调用...")
+        logger.info("NetworkAgent 服务已启动，等待调用...")
         loop.run()
     except KeyboardInterrupt:
-        print("\n[INFO] NetworkAgent 服务已停止")
+        logger.info("NetworkAgent 服务已停止")
         loop.quit()

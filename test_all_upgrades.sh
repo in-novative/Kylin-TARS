@@ -114,13 +114,13 @@ echo -e "${CYAN}模块三：MCP系统优化${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # 3.1 负载均衡和故障转移
-test_check "MCP Server文件存在" "test -f mcp_system/mcp_server/mcp_server_fixed.py"
-test_check "负载均衡功能" "grep -q '_load_balance\|load_balance' mcp_system/mcp_server/mcp_server_fixed.py"
-test_check "故障转移功能" "grep -q '_fault_tolerance\|fault_tolerance' mcp_system/mcp_server/mcp_server_fixed.py"
+test_check "MCP Server文件存在" "test -f mcp_system/mcp_server/mcp_server.py"
+test_check "负载均衡功能" "grep -q '_load_balance\|load_balance' mcp_system/mcp_server/mcp_server.py"
+test_check "故障转移功能" "grep -q '_fault_tolerance\|fault_tolerance' mcp_system/mcp_server/mcp_server.py"
 
 # 3.2 状态广播
-test_check "状态广播功能" "grep -q '_broadcast_agent_status\|broadcast' mcp_system/mcp_server/mcp_server_fixed.py"
-test_check "心跳监控" "grep -q 'start_heartbeat_monitor\|_check_agent_heartbeats' mcp_system/mcp_server/mcp_server_fixed.py"
+test_check "状态广播功能" "grep -q '_broadcast_agent_status\|broadcast' mcp_system/mcp_server/mcp_server.py"
+test_check "心跳监控" "grep -q 'start_heartbeat_monitor\|_check_agent_heartbeats' mcp_system/mcp_server/mcp_server.py"
 
 # 3.3 日志追溯
 test_check "协作日志模块存在" "test -f collaboration_logger.py"

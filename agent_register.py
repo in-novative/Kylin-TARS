@@ -1,25 +1,16 @@
 #!/usr/bin/env python3
 """
-子智能体适配器 - 将成员C的子智能体注册到成员A的MCP Server
-
-问题说明：
-- 成员A的MCP Server服务名: com.kylin.ai.mcp.MasterAgent
-- 成员C的子智能体期望连接: com.mcp.server
-- 本适配器解决服务名不一致问题
+子智能体注册器 - 将成员C的子智能体注册到成员A的MCP Server
 
 使用方式：
-1. 先启动 MCP Server (mcp_server_fixed.py)
-2. 运行本适配器注册子智能体
+1. 先启动 MCP Server (mcp_server.py)
+2. 注册子智能体
 """
 
 import os
 import sys
 import json
 import time
-
-# 添加项目路径
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, PROJECT_ROOT)
 
 # 尝试导入 D-Bus
 try:
@@ -47,7 +38,7 @@ def register_agents_to_mcp():
         return False
     
     print("=" * 60)
-    print("🔧 子智能体注册适配器")
+    print("🔧 子智能体注册器")
     print("=" * 60)
     
     try:
@@ -58,7 +49,7 @@ def register_agents_to_mcp():
         if not bus.name_has_owner(MCP_SERVICE_NAME):
             print(f"❌ MCP Server ({MCP_SERVICE_NAME}) 未运行")
             print("请先启动 MCP Server:")
-            print("  cd mcp_system/mcp_server && python mcp_server_fixed.py")
+            print("  cd mcp_system/mcp_server && python mcp_server.py")
             return False
         
         print(f"✓ MCP Server ({MCP_SERVICE_NAME}) 已运行")
@@ -190,11 +181,10 @@ def test_tool_call():
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="子智能体注册适配器")
+    parser = argparse.ArgumentParser(description="子智能体注册器")
     parser.add_argument("--test", action="store_true", help="测试工具调用")
     args = parser.parse_args()
     
     if register_agents_to_mcp():
         if args.test:
             test_tool_call()
-

@@ -56,7 +56,7 @@
 ├── mcp_integration.py         # MCP 联调模块（Day6）
 ├── full_integration.py        # 全链路联调脚本（Day6）
 ├── mcp_config.py              # MCP统一配置
-├── agent_adapter.py           # 子智能体适配器
+├── agent_register.py          # 子智能体注册器
 ├── start_integration.sh       # 联调启动脚本
 ├── test_uitars_api.py         # 模型API测试（Day1）
 ├── requirements_system2.txt   # 依赖列表
@@ -64,8 +64,7 @@
 │
 ├── mcp_system/                # 成员A：MCP Server（D-Bus服务）
 │   ├── mcp_server/
-│   │   ├── mcp_server.py        # 原始版本（有语法错误）
-│   │   ├── mcp_server_fixed.py  # 修复版本
+│   │   ├── mcp_server.py
 │   │   └── test_mcp_server.py
 │   └── mcp_client/
 │       ├── mcp_client.py
@@ -466,10 +465,10 @@ python full_integration.py
 
 ```bash
 # 终端1：启动 MCP Server（成员A）
-dbus-run-session -- python mcp_system/mcp_server/mcp_server_fixed.py
+dbus-run-session -- python mcp_system/mcp_server/mcp_server.py
 
 # 终端2：注册子智能体
-python agent_adapter.py
+python agent_register.py
 
 # 终端3：运行全链路测试
 python full_integration.py
@@ -491,7 +490,6 @@ cd Desktop/agent_project && python src/gradio_ui.py
 | 问题 | 原因 | 解决方案 |
 |------|------|----------|
 | D-Bus服务名不一致 | 成员A/C使用不同配置 | 使用 `agent_adapter.py` 适配 |
-| MCP Server语法错误 | 第112、134行三元运算符语法 | 使用 `mcp_server_fixed.py` |
 | 子智能体注册失败 | 字段名不一致(name/agent_name) | 修复版支持两种字段名 |
 
 ## 📝 更新日志
@@ -499,7 +497,7 @@ cd Desktop/agent_project && python src/gradio_ui.py
 - **v1.5** (2024-12): 全链路联调
   - 全链路联调脚本 (`full_integration.py`)
   - MCP配置统一 (`mcp_config.py`)
-  - 子智能体适配器 (`agent_adapter.py`)
+  - 子智能体注册器 (`agent_register.py`)
   - 修复成员A MCP Server语法错误
   - D-Bus服务名适配方案
 

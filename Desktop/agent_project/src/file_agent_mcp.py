@@ -5,16 +5,9 @@ import dbus
 from dbus.mainloop.glib import DBusGMainLoop
 from typing import Dict, List
 from gi.repository import GLib
-
-# 把项目根目录加入Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.file_agent_logic import FileAgentLogic
-
-# ===================== MCP Server DBus配置 =====================
-# 使用成员A的MCP Server配置（统一标准）
-MCP_BUS_NAME = "com.kylin.ai.mcp.MasterAgent"
-MCP_OBJECT_PATH = "/com/kylin/ai/mcp/MasterAgent"
-MCP_INTERFACE = "com.kylin.ai.mcp.MasterAgent"
+from utils.set_logger import set_logger
+from utils.get_config import get_master_config, get_child_config
 
 # ===================== FileAgent DBus配置 =====================
 AGENT_BUS_NAME = "com.mcp.agent.file"
@@ -81,19 +74,19 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
             keyword = params["keyword"]
             recursive = params.get("recursive", True)
             result = file_agent.search_file(search_path, keyword, recursive)
-            return {
+            return json.dumps({
                 "success": result["status"] == "success",
                 "result": result["data"],
                 "error": result["msg"] if result["status"] == "error" else None
-            }
+            })
         elif tool_name == "file_agent.move_to_trash":
             file_path = params["file_path"]
             result = file_agent.move_to_trash(file_path)
-            return {
+            return json.dumps({
                 "success": result["status"] == "success",
                 "result": result["data"],
                 "error": result["msg"] if result["status"] == "error" else None
-            }
+            })
         elif tool_name == "file_agent.batch_rename":
             result = file_agent.batch_rename(
                 target_dir=params["target_dir"],
@@ -103,25 +96,33 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
                 suffix=params.get("suffix", ""),
                 start_number=params.get("start_number", 1)
             )
-            return {
+            return json.dumps({
                 "success": result["status"] == "success",
                 "result": result["data"],
                 "error": result["msg"] if result["status"] == "error" else None
-            }
+            })
         else:
-            return {"success": False, "error": f"工具不存在：{tool_name}"}
+            return json.dumps({
+                "success": False,
+                "error": f"工具不存在：{tool_name}"
+            })
     except KeyError as e:
-        return {"success": False, "error": f"缺少必填参数：{str(e)}"}
+        return json.dumps({
+            "success": False,
+            "error": f"缺少必填参数：{str(e)}"
+        })
     except Exception as e:
-        return {"success": False, "error": f"工具调用失败：{str(e)}"}
+        return json.dumps({
+            "success": False,
+            "error": f"工具调用失败：{str(e)}"
+        })
 
 # ===================== DBus消息处理 =====================
 def message_handler(bus, message):
     """处理DBus消息（替代dbus.service.method）"""
     # 检查消息类型和接口
-    if message.get_type() != dbus.lowlevel.METHOD_CALL:
+    if not isinstance(message, dbus.lowlevel.MethodCallMessage):
         return
-    
     if message.get_interface() != AGENT_INTERFACE:
         return
     
@@ -159,32 +160,37 @@ def message_handler(bus, message):
         )
 
 # ===================== MCP注册逻辑 =====================
-def register_to_mcp():
+def register_to_mcp(logger):
     """注册到MCP Server"""
+    MASTERAGENT = get_master_config()
+    DBUS_SERVICE_NAME = MASTERAGENT["SERVICE_NAME"]
+    DBUS_OBJECT_PATH = MASTERAGENT["OBJECT_PATH"]
+    DBUS_INTERFACE_NAME = MASTERAGENT["INTERFACE_NAME"]
     try:
         # 检查MCP Server是否可用
-        if not bus.name_has_owner(MCP_BUS_NAME):
-            print(f"[WARNING] MCP Server ({MCP_BUS_NAME}) 未启动，跳过注册")
+        if not bus.name_has_owner(DBUS_SERVICE_NAME):
+            logger.warning(f"MCP Server ({DBUS_SERVICE_NAME}) 未启动，跳过注册")
             return
         
-        mcp_proxy = bus.get_object(MCP_BUS_NAME, MCP_OBJECT_PATH)
-        mcp_interface = dbus.Interface(mcp_proxy, MCP_INTERFACE)
+        mcp_proxy = bus.get_object(DBUS_SERVICE_NAME, DBUS_OBJECT_PATH)
+        interface = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
         
         register_data = json.dumps({
             "agent_name": "file_agent",
-            "bus_name": AGENT_BUS_NAME,
-            "object_path": AGENT_OBJECT_PATH,
+            "service": AGENT_BUS_NAME,
+            "path": AGENT_OBJECT_PATH,
             "interface": AGENT_INTERFACE,
             "tools": FILE_AGENT_TOOLS
         })
-        mcp_interface.AgentRegister(register_data)
-        print("[INFO] FileAgent已成功注册到MCP Server")
+        interface.AgentRegister(register_data)
+        logger.info("FileAgent已成功注册到MCP Server")
     except Exception as e:
-        print(f"[ERROR] 注册到MCP Server失败：{str(e)}")
+        logger.error(f"注册到MCP Server失败：{str(e)}")
 
 # ===================== 启动服务 =====================
 if __name__ == "__main__":
-    print("[INFO] 启动FileAgent MCP服务")
+    logger = set_logger("file_agent")
+    logger.info("启动FileAgent MCP服务")
     
     # 请求DBus服务名
     bus.request_name(AGENT_BUS_NAME)
@@ -193,12 +199,12 @@ if __name__ == "__main__":
     bus.add_message_filter(message_handler)
     
     # 注册到MCP Server
-    register_to_mcp()
+    register_to_mcp(logger)
     
     # 启动主循环
     loop = GLib.MainLoop()
     try:
         loop.run()
     except KeyboardInterrupt:
-        print("\n[INFO] 服务已停止")
+        logger.info("File Agent 服务已停止")
         loop.quit()

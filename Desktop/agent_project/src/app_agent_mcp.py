@@ -8,8 +8,6 @@ AppAgent MCP 服务 - 应用管理智能体
 3. app_agent.close_app - 关闭应用
 4. app_agent.list_running_apps - 列出运行中的应用
 5. app_agent.is_app_running - 检查应用是否运行
-
-作者：GUI Agent Team
 """
 
 import sys
@@ -19,15 +17,9 @@ import dbus
 from dbus.mainloop.glib import DBusGMainLoop
 from typing import Dict, List
 from gi.repository import GLib
-
-# 项目路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.app_agent_logic import AppAgentLogic
-
-# ===================== MCP Server DBus配置 =====================
-MCP_BUS_NAME = "com.kylin.ai.mcp.MasterAgent"
-MCP_OBJECT_PATH = "/com/kylin/ai/mcp/MasterAgent"
-MCP_INTERFACE = "com.kylin.ai.mcp.MasterAgent"
+from utils.set_logger import set_logger
+from utils.get_config import get_master_config, get_child_config
 
 # ===================== AppAgent DBus配置 =====================
 AGENT_BUS_NAME = "com.mcp.agent.app"
@@ -123,54 +115,55 @@ def handle_tool_call(tool_name: str, params: Dict) -> Dict:
     try:
         if tool_name == "app_agent.find_app":
             result = app_agent.find_app(params["app_name"])
-            
         elif tool_name == "app_agent.launch_app":
             result = app_agent.launch_app(
                 app_name=params["app_name"],
                 args=params.get("args", [])
             )
-            
         elif tool_name == "app_agent.close_app":
             result = app_agent.close_app(
                 app_name=params["app_name"],
                 force=params.get("force", False)
             )
-            
         elif tool_name == "app_agent.list_running_apps":
             result = app_agent.list_running_apps()
-            
         elif tool_name == "app_agent.is_app_running":
             result = app_agent.is_app_running(params["app_name"])
-            
         elif tool_name == "app_agent.app_quick_operation":
             result = app_agent.app_quick_operation(
                 app_name=params["app_name"],
                 url=params.get("url"),
                 args=params.get("args", [])
             )
-            
         else:
-            return {"success": False, "error": f"未知工具：{tool_name}"}
+            return json.dumps({
+                "success": False,
+                "error": f"未知工具：{tool_name}"
+            })
         
-        return {
+        return json.dumps({
             "success": result["status"] == "success",
             "result": result["data"],
             "msg": result["msg"],
             "screenshot_path": result.get("screenshot_path"),
             "error": result["msg"] if result["status"] == "error" else None
-        }
-        
+        })
     except KeyError as e:
-        return {"success": False, "error": f"缺少必填参数：{e}"}
+        return json.dumps({
+            "success": False,
+            "error": f"缺少必填参数：{e}"
+        })
     except Exception as e:
-        return {"success": False, "error": f"工具调用失败：{e}"}
+        return json.dumps({
+            "success": False,
+            "error": f"工具调用失败：{e}"
+        })
 
 # ===================== D-Bus 消息处理 =====================
 def message_handler(bus, message):
     """处理 D-Bus 消息"""
-    if message.get_type() != dbus.lowlevel.METHOD_CALL:
+    if not isinstance(message, dbus.lowlevel.MethodCallMessage):
         return
-    
     if message.get_interface() != AGENT_INTERFACE:
         return
     
@@ -204,22 +197,23 @@ def message_handler(bus, message):
         )
 
 # ===================== MCP 注册 =====================
-def register_to_mcp():
+def register_to_mcp(logger):
     """注册到 MCP Server"""
+    MASTERAGENT = get_master_config()
+    DBUS_SERVICE_NAME = MASTERAGENT["SERVICE_NAME"]
+    DBUS_OBJECT_PATH = MASTERAGENT["OBJECT_PATH"]
+    DBUS_INTERFACE_NAME = MASTERAGENT["INTERFACE_NAME"]
     try:
-        if not bus.name_has_owner(MCP_BUS_NAME):
-            print(f"[WARNING] MCP Server ({MCP_BUS_NAME}) 未启动，跳过注册")
+        if not bus.name_has_owner(DBUS_SERVICE_NAME):
+            logger.warning(f"MCP Server ({DBUS_SERVICE_NAME}) 未启动，跳过注册")
             return
         
-        mcp_proxy = bus.get_object(MCP_BUS_NAME, MCP_OBJECT_PATH)
-        mcp_interface = dbus.Interface(mcp_proxy, MCP_INTERFACE)
+        mcp_proxy = bus.get_object(DBUS_SERVICE_NAME, DBUS_OBJECT_PATH)
+        mcp_interface = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
         
         register_data = json.dumps({
             "name": "app_agent",
-            "agent_name": "app_agent",
-            "bus_name": AGENT_BUS_NAME,
             "service": AGENT_BUS_NAME,
-            "object_path": AGENT_OBJECT_PATH,
             "path": AGENT_OBJECT_PATH,
             "interface": AGENT_INTERFACE,
             "tools": APP_AGENT_TOOLS
@@ -227,17 +221,18 @@ def register_to_mcp():
         
         result = json.loads(mcp_interface.AgentRegister(register_data))
         if result.get("success"):
-        print("[INFO] AppAgent 已成功注册到 MCP Server")
-            print(f"[INFO]   工具: {[t['name'] for t in APP_AGENT_TOOLS]}")
+            logger.info("AppAgent 已成功注册到 MCP Server")
+            logger.info(f"工具: {[t['name'] for t in APP_AGENT_TOOLS]}")
         else:
-            print(f"[ERROR] 注册失败: {result.get('error')}")
+            logger.error(f"注册失败: {result.get('error')}")
             
     except Exception as e:
-        print(f"[ERROR] 注册到 MCP Server 失败：{e}")
+        logger.error(f"注册到 MCP Server 失败：{e}")
 
 # ===================== 启动服务 =====================
 if __name__ == "__main__":
-    print("[INFO] 启动 AppAgent MCP 服务")
+    logger = set_logger("app_agent")
+    logger.info("启动 AppAgent MCP 服务")
     
     # 请求 D-Bus 服务名
     bus.request_name(AGENT_BUS_NAME)
@@ -246,13 +241,13 @@ if __name__ == "__main__":
     bus.add_message_filter(message_handler)
     
     # 注册到 MCP
-    register_to_mcp()
+    register_to_mcp(logger)
     
     # 启动主循环
     loop = GLib.MainLoop()
     try:
-        print("[INFO] AppAgent 服务已启动，等待调用...")
+        logger.info("AppAgent 服务已启动，等待调用...")
         loop.run()
     except KeyboardInterrupt:
-        print("\n[INFO] AppAgent 服务已停止")
+        logger.info("AppAgent 服务已停止")
         loop.quit()

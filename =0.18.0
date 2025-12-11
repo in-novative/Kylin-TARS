@@ -1,5 +1,0 @@
-Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
-Collecting fuzzywuzzy
-  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/43/ff/74f23998ad2f93b945c0309f825be92e04e0348e062026998b5eefef4c33/fuzzywuzzy-0.18.0-py2.py3-none-any.whl (18 kB)
-Installing collected packages: fuzzywuzzy
-Successfully installed fuzzywuzzy-0.18.0

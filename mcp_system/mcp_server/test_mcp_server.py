@@ -9,6 +9,7 @@ import dbus
 import json
 import time
 import logging
+import traceback
 
 # Configure logging
 logging.basicConfig(
@@ -74,7 +75,9 @@ def test_tools_list():
         
         logger.info(f"Found {len(result_dict['tools'])} tools:")
         for tool in result_dict["tools"]:
-            logger.info(f"  - {tool['name']}: {tool['description']}")
+            if "." in tool:
+                agent_name, tool_name = tool.split(".", 1)
+            logger.info(f"find tool {tool_name} of agent {agent_name}")
         
         logger.info("✓ ToolsList test passed")
         
@@ -97,7 +100,7 @@ def test_tools_call():
         result = interface.ToolsCall("echo", json.dumps(parameters))
         result_dict = json.loads(result)
         
-        logger.info(f"ToolsCall result: {result_dict}")
+        logger.info(f"ToolsCall result: Er{result_dict}")
         assert result_dict["success"] == True, "ToolsCall failed"
         assert result_dict["result"]["echo"] == test_message, "Echo message mismatch"
         
@@ -108,7 +111,7 @@ def test_tools_call():
         raise
 
 
-def test_agent_register():
+def test_agent_register(agent_info):
     """Test the AgentRegister method"""
     try:
         bus = dbus.SessionBus()
@@ -116,35 +119,6 @@ def test_agent_register():
         interface = dbus.Interface(proxy, DBUS_INTERFACE_NAME)
         
         # Create a mock agent info
-        agent_info = {
-            "name": "TestAgent",
-            "service": "com.kylin.ai.mcp.TestAgent",
-            "path": "/com/kylin/ai/mcp/TestAgent",
-            "interface": "com.kylin.ai.mcp.TestAgent",
-            "tools": [
-                {
-                    "name": "test_tool",
-                    "description": "A test tool",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "test_param": {
-                                "type": "string",
-                                "description": "Test parameter"
-                            }
-                        },
-                        "required": ["test_param"]
-                    },
-                    "examples": [
-                        {
-                            "name": "Test Example",
-                            "parameters": {"test_param": "test_value"}
-                        }
-                    ]
-                }
-            ]
-        }
-        
         result = interface.AgentRegister(json.dumps(agent_info))
         result_dict = json.loads(result)
         
@@ -152,9 +126,6 @@ def test_agent_register():
         assert result_dict["success"] == True, "AgentRegister failed"
         
         logger.info("✓ AgentRegister test passed")
-        
-        # Return agent name for later tests
-        return agent_info["name"]
         
     except Exception as e:
         logger.error(f"AgentRegister test failed: {str(e)}")
@@ -211,7 +182,7 @@ def test_agent_unregister(agent_name):
         raise
 
 
-def test_tools_list_after_agent_register(agent_name):
+def test_tools_list_after_agent_register(tool_name):
     """Test that agent tools appear in ToolsList"""
     try:
         bus = dbus.SessionBus()
@@ -220,13 +191,12 @@ def test_tools_list_after_agent_register(agent_name):
         
         result = interface.ToolsList()
         result_dict = json.loads(result)
-        
+
         # Check if agent tool is in the list
         agent_tool_found = False
         for tool in result_dict["tools"]:
-            if tool["name"] == f"{agent_name}.test_tool":
+            if tool == tool_name:
                 agent_tool_found = True
-                assert tool["agent"] == agent_name, "Agent name mismatch in tool"
                 break
         
         assert agent_tool_found, f"Agent tool '{agent_name}.test_tool' not found in tools list"
@@ -240,6 +210,39 @@ def test_tools_list_after_agent_register(agent_name):
 def main():
     """Run all tests"""
     logger.info("Starting MCP Server tests...")
+
+    agent_info = {
+            "name": "FileAgent",
+            "service": "com.kylin.ai.mcp.FileAgent",
+            "path": "/com/kylin/ai/mcp/FileAgent",
+            "interface": "com.kylin.ai.mcp.FileAgent",
+            "tools": [
+                {
+                    "name": "FilEAgent.search_file",
+                    "description": "按关键词递归/非递归搜索指定目录下的文件，返回文件详情",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "search_path": {"type": "string", "description": "搜索目录的绝对路径"},
+                            "keyword": {"type": "string", "description": "搜索关键词"},
+                            "recursive": {"type": "boolean", "default": True, "description": "是否递归搜索"}
+                        },
+                        "required": ["search_path", "keyword"]
+                    }
+                },
+                {
+                    "name": "FileAgent.move_to_trash",
+                    "description": "将指定文件/目录移动到Linux系统回收站",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {"type": "string", "description": "文件/目录的绝对路径"}
+                        },
+                        "required": ["file_path"]
+                    }
+                }
+            ]
+        }
     
     try:
         # Test 1: Ping
@@ -252,16 +255,16 @@ def main():
         test_tools_call()
         
         # Test 4: AgentRegister
-        agent_name = test_agent_register()
+        test_agent_register(agent_info)
         
         # Test 5: ToolsList after agent register
-        test_tools_list_after_agent_register(agent_name)
+        test_tools_list_after_agent_register(agent_info["tools"][0]["name"])
         
         # Test 6: AgentsList
-        test_agents_list(agent_name)
+        test_agents_list(agent_info["name"])
         
         # Test 7: AgentUnregister
-        test_agent_unregister(agent_name)
+        test_agent_unregister(agent_info["name"])
         
         logger.info("🎉 All tests passed!")
         
