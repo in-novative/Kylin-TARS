@@ -10,8 +10,7 @@ AppAgent MCP 服务 - 应用管理智能体
 5. app_agent.is_app_running - 检查应用是否运行
 """
 
-import sys
-import os
+import time
 import json
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -107,7 +106,7 @@ APP_AGENT_TOOLS: List[Dict] = [
 # ===================== 初始化 =====================
 DBusGMainLoop(set_as_default=True)
 app_agent = AppAgentLogic()
-bus = dbus.SessionBus()
+bus = dbus.SessionBus()    
 
 # ===================== 工具调用处理 =====================
 def handle_tool_call(tool_name: str, params: Dict) -> Dict:
@@ -168,7 +167,13 @@ def message_handler(bus, message):
         return
     
     method_name = message.get_member()
-    if method_name != "ToolsCall":
+    if method_name == "Ping":
+        return json.dumps({
+            "status": "ok",
+            "timestamp": time.time(),
+            "service": "App Agent"
+        })
+    elif method_name != "ToolsCall":
         bus.send(
             dbus.lowlevel.ErrorMessage(
                 message,
@@ -236,13 +241,10 @@ if __name__ == "__main__":
     
     # 请求 D-Bus 服务名
     bus.request_name(AGENT_BUS_NAME)
-    
     # 添加消息处理器
     bus.add_message_filter(message_handler)
-    
     # 注册到 MCP
     register_to_mcp(logger)
-    
     # 启动主循环
     loop = GLib.MainLoop()
     try:

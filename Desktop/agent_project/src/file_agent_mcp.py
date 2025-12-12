@@ -1,5 +1,4 @@
-import sys
-import os
+import time
 import json
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -128,7 +127,13 @@ def message_handler(bus, message):
     
     # 获取方法名和参数
     method_name = message.get_member()
-    if method_name != "ToolsCall":
+    if method_name == "Ping":
+        return json.dumps({
+            "status": "ok",
+            "timestamp": time.time(),
+            "service": "File Agent"
+        })
+    elif method_name != "ToolsCall":
         bus.send(
             dbus.lowlevel.ErrorMessage(
                 message,

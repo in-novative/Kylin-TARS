@@ -25,7 +25,7 @@ PROJECT_ROOT=$(dirname "$(readlink -f "$0")")
 cd "$PROJECT_ROOT"
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     🚀 Kylin-TARS GUI Agent 全链路联调启动脚本              ║${NC}"
+echo -e "${BLUE}║     🚀 Kylin-TARS GUI Agent 全链路联调启动脚本                ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

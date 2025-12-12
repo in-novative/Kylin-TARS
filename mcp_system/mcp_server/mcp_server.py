@@ -7,12 +7,10 @@ and handles tool listing and tool calling requests.
 """
 
 import os
-import os
 import dbus
 import dbus.service
 import dbus.mainloop.glib
 import json
-import logging
 import time
 from threading import Thread
 from gi.repository import GLib
@@ -229,7 +227,6 @@ class MCPServer(dbus.service.Object):
             
             # Register the agent
             agent_info["last_seen"] = time.time()
-            logger.info(f"agent info : {agent_info.keys()}")
             UpsertAgent(**agent_info)
             
             logger.info(f"Child agent registered: {agent_info['name']}")
@@ -370,7 +367,7 @@ class MCPServer(dbus.service.Object):
         def monitor():
             while True:
                 time.sleep(30)  # Check every 30 seconds
-                self._check_agent_heartbeats()
+                #self._check_agent_heartbeats()
         
         heartbeat_thread = Thread(target=monitor, daemon=True)
         heartbeat_thread.start()
@@ -392,7 +389,7 @@ class MCPServer(dbus.service.Object):
                     agent["last_seen"] = time.time()
                     UpsertAgent(**agent)
         except Exception as e:
-            logging.warning("Agent %s offline: %s", agent["name"], e)
+            logger.warning("Agent %s offline: %s", agent["name"], e)
             
 
 def main():

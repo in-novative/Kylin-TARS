@@ -8,6 +8,7 @@ MediaAgent MCP 服务 - 媒体控制智能体
 3. media_agent.capture_media_frame - 截图播放帧
 """
 
+import time
 import json
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -96,8 +97,20 @@ def message_handler(bus, message):
         return
     
     method_name = message.get_member()
-    if method_name != "ToolsCall":
-        bus.send(dbus.lowlevel.ErrorMessage(message, "org.freedesktop.DBus.Error.UnknownMethod", f"Unknown method: {method_name}"))
+    if method_name == "Ping":
+        return json.dumps({
+            "status": "ok",
+            "timestamp": time.time(),
+            "service": "Media Agent"
+        })
+    elif method_name != "ToolsCall":
+        bus.send(
+            dbus.lowlevel.ErrorMessage(
+                message, 
+                "org.freedesktop.DBus.Error.UnknownMethod",
+                f"Unknown method: {method_name}"
+            )
+        )
         return
     
     try:

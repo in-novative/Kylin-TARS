@@ -1,5 +1,4 @@
-import sys
-import os
+import time
 import json
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -108,7 +107,13 @@ def message_handler(bus, message):
     
     # 获取方法名和参数
     method_name = message.get_member()
-    if method_name != "ToolsCall":
+    if method_name == "Ping":
+        return json.dumps({
+            "status": "ok",
+            "timestamp": time.time(),
+            "service": "Setting Agent"
+        })
+    elif method_name != "ToolsCall":
         bus.send(
             dbus.lowlevel.ErrorMessage(
                 message,
@@ -153,7 +158,7 @@ def register_to_mcp(logger):
             return
         
         mcp_proxy = bus.get_object(DBUS_SERVICE_NAME, DBUS_OBJECT_PATH)
-        DBUS_INTERFACE_NAME = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
+        interface = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
         
         register_data = json.dumps({
             "name": "settings_agent",
@@ -162,14 +167,14 @@ def register_to_mcp(logger):
             "interface": AGENT_INTERFACE,
             "tools": SETTINGS_AGENT_TOOLS
         })
-        DBUS_INTERFACE_NAME.AgentRegister(register_data)
+        interface.AgentRegister(register_data)
         logger.info("SettingsAgent已成功注册到MCP Server")
     except Exception as e:
         logger.error(f"注册到MCP Server失败：{str(e)}")
 
 # ===================== 启动服务 =====================
 if __name__ == "__main__":
-    logger = set_logger("monitor_agent")
+    logger = set_logger("setting_agent")
     logger.info("启动SettingsAgent MCP服务")
     
     # 请求DBus服务名

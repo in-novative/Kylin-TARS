@@ -12,8 +12,7 @@ NetworkAgent MCP 服务 - 网络管理智能体
 7. network_agent.get_proxy_status - 获取代理状态
 """
 
-import sys
-import os
+import time
 import json
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -207,7 +206,13 @@ def message_handler(bus, message):
         return
     
     method_name = message.get_member()
-    if method_name != "ToolsCall":
+    if method_name == "Ping":
+        return json.dumps({
+            "status": "ok",
+            "timestamp": time.time(),
+            "service": "Network Agent"
+        })
+    elif method_name != "ToolsCall":
         bus.send(
             dbus.lowlevel.ErrorMessage(
                 message,
@@ -248,7 +253,7 @@ def register_to_mcp(logger):
             return
         
         mcp_proxy = bus.get_object(DBUS_SERVICE_NAME, DBUS_OBJECT_PATH)
-        DBUS_INTERFACE_NAME = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
+        interface = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
         
         register_data = json.dumps({
             "name": "network_agent",
@@ -258,7 +263,7 @@ def register_to_mcp(logger):
             "tools": NETWORK_AGENT_TOOLS
         })
         
-        result = json.loads(DBUS_INTERFACE_NAME.AgentRegister(register_data))
+        result = json.loads(interface.AgentRegister(register_data))
         if result.get("success"):
             logger.info("NetworkAgent 已成功注册到 MCP Server")
             logger.info(f"工具: {[t['name'] for t in NETWORK_AGENT_TOOLS]}")
@@ -270,7 +275,7 @@ def register_to_mcp(logger):
 
 # ===================== 启动服务 =====================
 if __name__ == "__main__":
-    logger = set_logger("monitor_agent")
+    logger = set_logger("network_agent")
     logger.info("启动 NetworkAgent MCP 服务")
     
     # 请求 D-Bus 服务名

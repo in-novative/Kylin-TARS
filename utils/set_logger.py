@@ -1,19 +1,32 @@
 import os
+import time
 import logging
+from pathlib import Path
 
 def set_logger(log_name:str):
-    LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "log")
-    LOG_PATH = os.path.join(LOG_DIR, f"{log_name}.log")
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(LOG_PATH),
-            logging.StreamHandler()
-        ]
+    time_str = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+    here = Path(__file__).resolve()
+    for p in (here, *here.parents):
+        if (p / '.project_root').exists():
+            root = p
+            break
+    else:
+        raise RuntimeError('Can not find project root')
+    LOG_PATH = os.path.join(
+        root, "log", log_name, f"{time_str}.log"
     )
-    logger = logging.getLogger(f"{log_name}")
+    os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+
+    logger = logging.getLogger(log_name)
+    logger.setLevel(logging.INFO)
+
+    if not logger.handlers:
+        file_handler = logging.FileHandler(LOG_PATH)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(file_handler)
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(stream_handler)
+
     return logger

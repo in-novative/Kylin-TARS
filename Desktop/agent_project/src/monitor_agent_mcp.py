@@ -8,8 +8,7 @@ MonitorAgent MCP 服务 - 系统监控智能体
 3. monitor_agent.monitor_agent_status - 监控智能体状态
 """
 
-import sys
-import os
+import time
 import json
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -91,8 +90,20 @@ def message_handler(bus, message):
         return
     
     method_name = message.get_member()
-    if method_name != "ToolsCall":
-        bus.send(dbus.lowlevel.ErrorMessage(message, "org.freedesktop.DBus.Error.UnknownMethod", f"Unknown method: {method_name}"))
+    if method_name == "Ping":
+        return json.dumps({
+            "status": "ok",
+            "timestamp": time.time(),
+            "service": "Monitor Agent"
+        })
+    elif method_name != "ToolsCall":
+        bus.send(
+            dbus.lowlevel.ErrorMessage(
+                message,
+                "org.freedesktop.DBus.Error.UnknownMethod",
+                f"Unknown method: {method_name}"
+            )
+        )
         return
     
     try:
@@ -117,7 +128,7 @@ def register_to_mcp(logger):
             return
         
         mcp_proxy = bus.get_object(DBUS_SERVICE_NAME, DBUS_OBJECT_PATH)
-        DBUS_INTERFACE_NAME = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
+        interface = dbus.Interface(mcp_proxy, DBUS_INTERFACE_NAME)
         
         register_data = json.dumps({
             "name": "monitor_agent",
@@ -127,7 +138,7 @@ def register_to_mcp(logger):
             "tools": MONITOR_AGENT_TOOLS
         })
         
-        result = json.loads(DBUS_INTERFACE_NAME.AgentRegister(register_data))
+        result = json.loads(interface.AgentRegister(register_data))
         if result.get("success"):
             logger.info("MonitorAgent 已成功注册到 MCP Server")
         else:
