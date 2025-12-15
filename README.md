@@ -40,10 +40,36 @@ python3 test_remote_api.py
 
 访问 Web UI: `http://localhost:7870`
 
+## 🐳 Docker 部署（推荐）
+
+### 快速部署到 openKylin 环境
+
+```bash
+# 1. 构建镜像
+./build_docker_openkylin.sh
+
+# 2. 启动容器
+./start_docker_openkylin.sh
+
+# 3. 连接 VNC（地址: <服务器IP>:5900，密码: 123456）
+
+# 4. 在容器内启动项目
+docker exec -it kylin-tars-openkylin bash
+su kylin-user
+cd ~/kylin-tars-project
+bash install_in_container.sh
+./start_upgrade.sh
+```
+
+**详细文档**：
+- **Docker 部署指南**: [DOCKER_DEPLOYMENT_OPENKYLIN.md](DOCKER_DEPLOYMENT_OPENKYLIN.md)
+- **快速开始**: [QUICK_START_DOCKER.md](QUICK_START_DOCKER.md)
+
 ## 📚 文档
 
 - **升级版详细文档**: [README_UPGRADE.md](README_UPGRADE.md)
-- **迁移指南**: [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)
+- **Docker 部署指南**: [DOCKER_DEPLOYMENT_OPENKYLIN.md](DOCKER_DEPLOYMENT_OPENKYLIN.md)
+- **快速开始**: [QUICK_START_DOCKER.md](QUICK_START_DOCKER.md)
 - **项目状态**: [PROJECT_STATUS.md](PROJECT_STATUS.md)
 
 ## 🎯 核心功能
