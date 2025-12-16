@@ -47,19 +47,45 @@ except ImportError:
     print("[WARNING] MonitorAgent或MediaAgent未找到，相关功能不可用")
 
 # 导入记忆模块（如果可用）
+HAS_MEMORY = False
+HAS_CONFIG_MANAGER = False
+
+# 导入记忆存储和检索模块
 try:
     sys.path.insert(0, "/data1/cyx/Kylin-TARS")
-    from memory_store import list_trajectories, search_trajectories
+    sys.path.insert(0, "/data1/cyx/Kylin-TARS/memory")  # 添加memory目录到路径
+    from memory_store import list_trajectories, search_trajectories, save_collaboration_trajectory
     from memory_retrieve import retrieve_similar_trajectory, semantic_retrieve
     from memory_visualization import generate_visualization_html, get_trajectory_summary
-    from collaboration_logger import query_logs, get_log_chain, get_log_statistics
-    from mcp_config_manager import get_config_manager, PermissionLevel
+    # 为了兼容性，创建别名
+    save_trajectory = save_collaboration_trajectory
     HAS_MEMORY = True
+except ImportError as e:
+    print(f"[WARNING] 记忆模块未找到，记忆功能不可用: {e}")
+
+# 导入协作日志模块（可选）
+try:
+    sys.path.insert(0, "/data1/cyx/Kylin-TARS/log")  # 添加log目录到路径（collaboration_logger）
+    from collaboration_logger import query_logs, get_log_chain, get_log_statistics
+except ImportError as e:
+    print(f"[WARNING] 协作日志模块未找到，日志功能不可用: {e}")
+
+# 导入MCP配置管理模块（可选）
+try:
+    sys.path.insert(0, "/data1/cyx/Kylin-TARS/run")  # 添加run目录到路径（mcp_config_manager）
+    from mcp_config_manager import get_config_manager, PermissionLevel
     HAS_CONFIG_MANAGER = True
-except ImportError:
-    HAS_MEMORY = False
-    HAS_CONFIG_MANAGER = False
-    print("[WARNING] 记忆模块或配置管理模块未找到，部分功能不可用")
+except ImportError as e:
+    print(f"[WARNING] MCP配置管理模块未找到，配置管理功能不可用: {e}")
+
+# 导入System-2推理模块（如果可用）
+try:
+    sys.path.insert(0, "/data1/cyx/Kylin-TARS/run")  # system2_prompt在run目录下
+    from system2_prompt import generate_master_reasoning
+    HAS_SYSTEM2 = True
+except ImportError as e:
+    HAS_SYSTEM2 = False
+    print(f"[WARNING] System-2推理模块未找到，将使用关键词匹配模式: {e}")
 
 # ============================================================
 # 初始化智能体
@@ -553,16 +579,23 @@ def format_reasoning_chain(reasoning: dict) -> str:
     
     return "".join(html_parts)
 
-def get_history_tasks() -> List[str]:
+def get_history_tasks(use_memory: bool = True) -> List[str]:
     """获取历史任务列表"""
+    # 如果记忆模块不可用，无论是否勾选都显示不可用
     if not HAS_MEMORY:
         return ["（记忆模块不可用）"]
     
+    # 如果记忆模块可用但未启用，显示已禁用
+    if not use_memory:
+        return ["（记忆模块已禁用）"]
+    
+    # 如果记忆模块可用且已启用，返回历史任务列表
     try:
         trajectories = list_trajectories(limit=20)
         tasks = [t.get("task", "未知任务") for t in trajectories if t.get("task")]
         return list(set(tasks))[:10] if tasks else ["（无历史任务）"]
-    except:
+    except Exception as e:
+        print(f"[WARNING] 获取历史任务失败: {e}")
         return ["（获取失败）"]
 
 def get_screenshots() -> List[str]:
@@ -636,9 +669,150 @@ def generate_result_summary(task: str, result: str, screenshots: List[str] = Non
 # 核心功能函数
 # ============================================================
 
+def execute_reasoning_plan(reasoning: dict) -> List[str]:
+    """
+    根据推理链的执行计划调用智能体工具
+    
+    Args:
+        reasoning: 推理链字典
+        
+    Returns:
+        执行结果列表
+    """
+    results = []
+    execution_plan = reasoning.get("execution_plan", [])
+    
+    if not execution_plan:
+        return results
+    
+    for step in execution_plan:
+        step_num = step.get("step", 0)
+        action = step.get("action", "")
+        agent = step.get("agent", "")
+        tool = step.get("tool", "")
+        
+        add_log(f"执行步骤 {step_num}: {action} (Agent: {agent}, Tool: {tool})", "info")
+        
+        try:
+            # 根据agent和tool调用相应的智能体方法
+            if agent == "FileAgent":
+                if tool == "search_file":
+                    path = step.get("parameters", {}).get("path", os.path.expanduser("~"))
+                    keyword = step.get("parameters", {}).get("keyword", "")
+                    result = file_agent.search_file(path, keyword, recursive=True)
+                    results.append(f"FileAgent: {result.get('msg', '执行完成')}")
+                elif tool == "move_to_trash":
+                    file_path = step.get("parameters", {}).get("file_path", "")
+                    if file_path:
+                        result = file_agent.move_to_trash(file_path)
+                        results.append(f"FileAgent: {result.get('msg', '执行完成')}")
+                elif tool == "batch_rename":
+                    results.append(f"FileAgent: 批量重命名功能已准备")
+                    
+            elif agent == "SettingsAgent":
+                if tool == "set_wallpaper":
+                    image_path = step.get("parameters", {}).get("image_path", "")
+                    if image_path:
+                        result = settings_agent.set_wallpaper(image_path)
+                        results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
+                elif tool == "adjust_volume":
+                    volume = step.get("parameters", {}).get("volume", 50)
+                    result = settings_agent.adjust_volume(volume)
+                    results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
+                elif tool == "bluetooth_manage":
+                    action_type = step.get("parameters", {}).get("action", "status")
+                    result = settings_agent.bluetooth_manage(action_type)
+                    results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
+                    
+            elif agent == "NetworkAgent":
+                if tool == "scan_wifi":
+                    result = network_agent.scan_wifi()
+                    results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
+                elif tool == "connect_wifi":
+                    ssid = step.get("parameters", {}).get("ssid", "")
+                    password = step.get("parameters", {}).get("password", "")
+                    result = network_agent.connect_wifi(ssid, password)
+                    results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
+                elif tool == "set_proxy":
+                    proxy_host = step.get("parameters", {}).get("host", "")
+                    proxy_port = step.get("parameters", {}).get("port", "")
+                    result = network_agent.set_proxy(proxy_host, proxy_port)
+                    results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
+                elif tool == "speed_test":
+                    result = network_agent.speed_test()
+                    results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
+                elif tool == "get_network_status":
+                    result = network_agent.get_network_status()
+                    results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
+                    
+            elif agent == "AppAgent":
+                if tool == "launch_app":
+                    app_name = step.get("parameters", {}).get("app_name", "")
+                    if app_name:
+                        result = app_agent.launch_app(app_name)
+                        results.append(f"AppAgent: {result.get('msg', '执行完成')}")
+                elif tool == "close_app":
+                    app_name = step.get("parameters", {}).get("app_name", "")
+                    if app_name:
+                        result = app_agent.close_app(app_name)
+                        results.append(f"AppAgent: {result.get('msg', '执行完成')}")
+                elif tool == "app_quick_operation":
+                    command = step.get("parameters", {}).get("command", "")
+                    result = app_agent.app_quick_operation(command)
+                    results.append(f"AppAgent: {result.get('msg', '执行完成')}")
+                    
+            elif agent == "MonitorAgent" and HAS_MONITOR_AGENT:
+                if tool == "get_system_status":
+                    result = monitor_agent.get_system_status()
+                    if result["status"] == "success":
+                        data = result["data"]
+                        cpu_info = data.get("cpu", {})
+                        memory_info = data.get("memory", {})
+                        disk_info = data.get("disk", {})
+                        # 返回详细的系统状态信息
+                        status_detail = f"CPU: {cpu_info.get('percent', 0):.1f}% ({cpu_info.get('status', 'N/A')}), "
+                        status_detail += f"内存: {memory_info.get('percent', 0):.1f}% ({memory_info.get('status', 'N/A')}), "
+                        status_detail += f"磁盘: {disk_info.get('percent', 0):.1f}% ({disk_info.get('status', 'N/A')})"
+                        results.append(f"MonitorAgent: {result.get('msg', '执行完成')} - {status_detail}")
+                    else:
+                        results.append(f"MonitorAgent: {result.get('msg', '执行失败')}")
+                elif tool == "clean_background_process" or tool == "clean_processes":
+                    # 支持两种工具名称：clean_background_process 和 clean_processes
+                    process_name = step.get("parameters", {}).get("process_name")
+                    if not process_name:
+                        # 如果参数是 process_names（列表），取第一个
+                        process_names = step.get("parameters", {}).get("process_names", [])
+                        process_name = process_names[0] if process_names else None
+                    result = monitor_agent.clean_background_process(process_name)
+                    if result["status"] == "success":
+                        cleaned_count = result.get("data", {}).get("cleaned_count", 0)
+                        results.append(f"MonitorAgent: {result.get('msg', '执行完成')} (已清理 {cleaned_count} 个进程)")
+                    else:
+                        results.append(f"MonitorAgent: {result.get('msg', '执行失败')}")
+                    
+            elif agent == "MediaAgent" and HAS_MEDIA_AGENT:
+                if tool == "play_media":
+                    media_path = step.get("parameters", {}).get("media_path", "")
+                    if media_path:
+                        result = media_agent.play_media(media_path)
+                        results.append(f"MediaAgent: {result.get('msg', '执行完成')}")
+                elif tool == "control_media":
+                    action = step.get("parameters", {}).get("action", "pause")
+                    result = media_agent.control_media(action)
+                    results.append(f"MediaAgent: {result.get('msg', '执行完成')}")
+            else:
+                results.append(f"{agent}: 步骤已记录 - {action}")
+                
+        except Exception as e:
+            error_msg = f"{agent}执行失败: {str(e)}"
+            add_log(error_msg, "error")
+            results.append(error_msg)
+    
+    return results
+
 def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> Tuple[str, str, str, str, List[str]]:
     """
-    执行用户任务
+    执行用户任务（集成System-2推理）
     
     Args:
         task: 任务指令
@@ -660,23 +834,153 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
     
     add_log(f"收到任务: {task}", "info")
     
-    # 简单的任务分析和执行
-    reasoning = {
-        "thought_chain": {
+    reasoning = None
+    results = []
+    screenshots = []
+    use_fallback = False
+    
+    # Step 1: 记忆检索（如果启用）
+    reused_reasoning = None
+    if use_memory and HAS_MEMORY:
+        try:
+            add_log("🔍 检索相似任务...", "info")
+            similar_traj = retrieve_similar_trajectory(task, threshold=60, verbose=False)
+            if similar_traj:
+                reused_reasoning = similar_traj.get("reasoning_chain")
+                add_log(f"✓ 找到相似任务，复用推理链", "success")
+        except Exception as e:
+            add_log(f"记忆检索失败: {str(e)}", "warning")
+    else:
+        add_log("💡 记忆模块已禁用，将直接使用UITARS推理", "info")
+    
+    # Step 2: 生成推理链（使用System-2或复用记忆）
+    if reused_reasoning:
+        reasoning = reused_reasoning
+        add_log("✓ 使用记忆中的推理链", "success")
+    elif HAS_SYSTEM2:
+        try:
+            add_log("🧠 使用uitars生成推理链...", "info")
+            process_steps = ["生成推理链", "调用智能体", "任务执行"]
+            process_status = generate_process_status_bar(process_steps, 0)
+            
+            # 命令行监控：显示推理开始
+            print("\n" + "="*70)
+            print("🧠 UITARS推理链生成")
+            print("="*70)
+            print(f"📝 用户任务: {task}")
+            print(f"⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print("-"*70)
+            
+            # 调用System-2推理（启用verbose模式以便命令行输出）
+            reasoning = generate_master_reasoning(task, max_retries=3, verbose=True)
+            
+            # 命令行监控：显示推理结果
+            if reasoning and not reasoning.get("_is_fallback"):
+                add_log("✓ 推理链生成成功", "success")
+                print("\n" + "="*70)
+                print("✅ 推理链生成成功")
+                print("="*70)
+                
+                # 显示推理链摘要
+                thought_chain = reasoning.get("thought_chain", {})
+                print(f"📋 任务理解: {thought_chain.get('task_understanding', 'N/A')}")
+                print(f"🔧 任务分解: {thought_chain.get('task_decomposition', 'N/A')}")
+                
+                agent_selection = thought_chain.get("agent_selection", [])
+                if agent_selection:
+                    print(f"🤖 智能体选择:")
+                    for agent_info in agent_selection:
+                        if isinstance(agent_info, dict):
+                            print(f"   - {agent_info.get('agent', 'Unknown')}: {agent_info.get('reason', 'N/A')}")
+                        else:
+                            print(f"   - {agent_info}")
+                
+                print(f"⚠️  风险评估: {thought_chain.get('risk_assessment', 'N/A')}")
+                print(f"🔄 回退方案: {thought_chain.get('fallback_plan', 'N/A')}")
+                
+                execution_plan = reasoning.get("execution_plan", [])
+                if execution_plan:
+                    print(f"\n📊 执行计划 ({len(execution_plan)} 步):")
+                    for step in execution_plan:
+                        step_num = step.get("step", 0)
+                        action = step.get("action", "")
+                        agent = step.get("agent", "")
+                        tool = step.get("tool", "")
+                        print(f"   {step_num}. [{agent}] {action} (工具: {tool})")
+                
+                print("="*70 + "\n")
+            else:
+                add_log("⚠️ 推理链生成失败，使用降级策略", "warning")
+                use_fallback = True
+                print("\n" + "="*70)
+                print("⚠️  推理链生成失败，使用降级策略（关键词匹配）")
+                print("="*70 + "\n")
+        except Exception as e:
+            add_log(f"推理链生成异常: {str(e)}", "error")
+            use_fallback = True
+            print("\n" + "="*70)
+            print(f"❌ 推理链生成异常: {str(e)}")
+            print("="*70 + "\n")
+    
+    # Step 3: 如果推理失败，使用关键词匹配降级策略
+    if not reasoning or use_fallback:
+        add_log("⚠️ 使用关键词匹配模式", "warning")
+        reasoning = {
+            "thought_chain": {
+                "task_understanding": task,
+                "task_decomposition": "",
+                "agent_selection": [],
+                "risk_assessment": "无明显风险",
+                "fallback_plan": "重试或手动操作"
+            },
+            "execution_plan": [],
+            "milestone_markers": []
+        }
+        use_fallback = True
+    
+    # 确保reasoning字典有必要的键
+    if not reasoning:
+        reasoning = {
+            "thought_chain": {
+                "task_understanding": task,
+                "task_decomposition": "",
+                "agent_selection": [],
+                "risk_assessment": "无明显风险",
+                "fallback_plan": "重试或手动操作"
+            },
+            "execution_plan": [],
+            "milestone_markers": []
+        }
+    
+    if "execution_plan" not in reasoning:
+        reasoning["execution_plan"] = []
+    if "thought_chain" not in reasoning:
+        reasoning["thought_chain"] = {
             "task_understanding": task,
             "task_decomposition": "",
             "agent_selection": [],
             "risk_assessment": "无明显风险",
             "fallback_plan": "重试或手动操作"
-        },
-        "execution_plan": [],
-        "milestone_markers": []
-    }
+        }
+    if "agent_selection" not in reasoning["thought_chain"]:
+        reasoning["thought_chain"]["agent_selection"] = []
     
-    results = []
-    screenshots = []
+    # Step 4: 执行推理链计划
+    if not use_fallback and reasoning.get("execution_plan"):
+        # 使用推理链的执行计划
+        add_log("📋 执行推理链计划...", "info")
+        process_steps = ["生成推理链", "调用智能体", "任务执行"]
+        process_status = generate_process_status_bar(process_steps, 1)
+        
+        results = execute_reasoning_plan(reasoning)
+        
+        if not results:
+            add_log("⚠️ 推理链执行计划为空，使用关键词匹配", "warning")
+            use_fallback = True
     
-    # 根据任务关键词分发到不同智能体
+    # Step 5: 降级策略 - 关键词匹配（如果推理链无效或执行计划为空）
+    if use_fallback or not reasoning.get("execution_plan"):
+        add_log("🔧 使用关键词匹配模式", "info")
     task_lower = task.lower()
     
     # 文件操作
@@ -787,32 +1091,106 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
         reasoning["thought_chain"]["agent_selection"].append({"agent": "AppAgent", "reason": "应用管理"})
         results.append("AppAgent: 关闭应用功能已准备")
     
+    # 系统监控
+    if any(kw in task_lower for kw in ["监控", "系统状态", "cpu", "内存", "磁盘", "系统资源", "进程"]):
+        if HAS_MONITOR_AGENT:
+            add_log("调用 MonitorAgent 获取系统状态", "info")
+            reasoning["thought_chain"]["agent_selection"].append({"agent": "MonitorAgent", "reason": "系统监控"})
+            
+            result = monitor_agent.get_system_status()
+            if result["status"] == "success":
+                data = result["data"]
+                cpu_info = data.get("cpu", {})
+                memory_info = data.get("memory", {})
+                disk_info = data.get("disk", {})
+                results.append(f"MonitorAgent: CPU使用率 {cpu_info.get('percent', 0):.1f}%, 内存使用率 {memory_info.get('percent', 0):.1f}%, 磁盘使用率 {disk_info.get('percent', 0):.1f}%")
+            else:
+                results.append(f"MonitorAgent: {result.get('msg', '获取系统状态失败')}")
+            
+            reasoning["execution_plan"].append({
+                "step": len(reasoning.get("execution_plan", [])) + 1,
+                "action": "获取系统状态",
+                "agent": "MonitorAgent",
+                "tool": "get_system_status"
+            })
+        else:
+            results.append("MonitorAgent: 系统监控功能不可用")
+    
+    # 清理进程
+    if any(kw in task_lower for kw in ["清理进程", "清理后台", "结束进程", "kill"]):
+        if HAS_MONITOR_AGENT:
+            add_log("调用 MonitorAgent 清理进程", "info")
+            reasoning["thought_chain"]["agent_selection"].append({"agent": "MonitorAgent", "reason": "进程管理"})
+            
+            # 提取进程名（如果有）
+            process_name = None
+            import re
+            # 尝试从任务中提取进程名
+            process_match = re.search(r'(清理|结束|kill)\s+(\w+)', task_lower)
+            if process_match:
+                process_name = process_match.group(2)
+            
+            result = monitor_agent.clean_background_process(process_name)
+            results.append(f"MonitorAgent: {result.get('msg', '清理完成')}")
+            
+            reasoning["execution_plan"].append({
+                "step": len(reasoning.get("execution_plan", [])) + 1,
+                "action": f"清理进程{' ' + process_name if process_name else ''}",
+                "agent": "MonitorAgent",
+                "tool": "clean_background_process",
+                "parameters": {"process_name": process_name} if process_name else {}
+            })
+        else:
+            results.append("MonitorAgent: 进程清理功能不可用")
+    
     # 生成任务分解描述
-    if reasoning["execution_plan"]:
+    if reasoning.get("execution_plan"):
         steps = [f"{p['step']}. {p['action']}" for p in reasoning["execution_plan"]]
+        if "thought_chain" not in reasoning:
+            reasoning["thought_chain"] = {}
         reasoning["thought_chain"]["task_decomposition"] = "；".join(steps)
+        if "milestone_markers" not in reasoning:
+            reasoning["milestone_markers"] = []
         reasoning["milestone_markers"] = [f"step_{i+1}_complete" for i in range(len(steps))]
     else:
+        if "thought_chain" not in reasoning:
+            reasoning["thought_chain"] = {}
         reasoning["thought_chain"]["task_decomposition"] = "任务分析中，请提供更具体的指令"
     
-    # 截图
+    # Step 6: 截图
     screenshot = capture_screenshot("task_result")
     if screenshot:
         screenshots.append(screenshot)
         add_log(f"截图已保存: {screenshot}", "info")
     
+    # Step 7: 保存到记忆模块（如果启用且推理链有效）
+    if use_memory and HAS_MEMORY and reasoning and not use_fallback:
+        try:
+            add_log("💾 保存执行轨迹到记忆模块...", "info")
+            save_trajectory(
+                task=task,
+                reasoning_chain=reasoning,
+                execution_result="\n".join(results) if results else "执行完成",
+                screenshot_paths=screenshots if screenshots else None,
+                success=True
+            )
+            add_log("✓ 轨迹已保存", "success")
+        except Exception as e:
+            add_log(f"保存轨迹失败: {str(e)}", "warning")
+            print(f"[ERROR] 保存轨迹失败: {e}")
+    
     add_log("任务执行完成", "success")
     
-    # 生成流程状态条
+    # Step 8: 生成流程状态条
     process_steps = ["生成推理链", "调用智能体", "任务执行"]
     current_step = 2  # 已完成
     process_status = generate_process_status_bar(process_steps, current_step)
     
-    # 格式化输出
+    # Step 9: 格式化输出
     reasoning_html = format_reasoning_chain(reasoning)
     result_text = "\n".join(results) if results else "任务已分析，等待执行具体操作"
     
-    # 生成结果总结
+    # Step 10: 生成结果总结
     result_summary = generate_result_summary(task, result_text, screenshots)
     
     return process_status, reasoning_html, result_text, result_summary, screenshots
@@ -894,7 +1272,7 @@ def get_network_status() -> str:
 def list_wifi() -> list:
     """列出 WiFi"""
     add_log("扫描 WiFi 网络", "info")
-    result = network_agent.list_wifi_networks()
+    result = network_agent.list_wifi()
     
     if result["status"] == "success":
         return [[w["ssid"], w["signal"], w["security"]] for w in result["data"]]
@@ -975,10 +1353,18 @@ def create_ui():
                         with gr.Row():
                             history_dropdown = gr.Dropdown(
                                 label="历史指令",
-                                choices=get_history_tasks(),
+                                choices=get_history_tasks(False),  # 初始状态：记忆模块未启用
                                 interactive=True
                             )
                             refresh_history_btn = gr.Button("🔄", scale=0)
+                        
+                        # 推理模式选择
+                        gr.Markdown("### 🧠 推理模式")
+                        use_memory_checkbox = gr.Checkbox(
+                            label="💾 使用记忆模块（启用后将优先检索相似任务，否则直接使用UITARS推理）",
+                            value=False,
+                            info="关闭记忆模块时，将直接调用外部UITARS API进行推理"
+                        )
                         
                         with gr.Row():
                             execute_btn = gr.Button("▶️ 执行任务", variant="primary")
@@ -1102,10 +1488,10 @@ def create_ui():
                             volume_msg = gr.Textbox(label="结果")
                             
                             gr.Markdown("#### 蓝牙管理")
-                            bluetooth_action = gr.Radio(label="操作", choices=["enable", "disable", "status", "connect"], value="status")
-                            bluetooth_device = gr.Textbox(label="设备名称（连接时填写）", placeholder="设备MAC地址或名称")
-                            bluetooth_btn = gr.Button("📶 执行操作", variant="primary")
-                            bluetooth_msg = gr.Textbox(label="操作结果")
+                            bluetooth_action = gr.Radio(label="操作", choices=["enable", "disable", "status", "connect"], value="status", interactive=True)
+                            bluetooth_device = gr.Textbox(label="设备名称（连接时填写）", placeholder="设备MAC地址或名称", interactive=True)
+                            bluetooth_btn = gr.Button("📶 执行操作", variant="primary", interactive=True)
+                            bluetooth_msg = gr.Textbox(label="操作结果", lines=5)
                 
                 # NetworkAgent
                 with gr.Accordion("🌐 NetworkAgent - 网络管理", open=False):
@@ -1156,17 +1542,72 @@ def create_ui():
                     with gr.Row():
                         with gr.Column():
                             gr.Markdown("#### 系统状态")
-                            monitor_refresh_btn = gr.Button("🔄 刷新状态", variant="primary")
-                            system_status_display = gr.HTML(value="<p>点击「刷新状态」查看系统状态</p>", label="系统状态")
+                            
+                            # 状态显示 - 使用HTML显示 MonitorAgent 是否可用
+                            status_html = ""
+                            if HAS_MONITOR_AGENT:
+                                status_html = '''
+                                <div style="padding: 10px; background: #d4edda; border-radius: 5px; margin-bottom: 10px;">
+                                    <h4 style="color: #155724; margin: 0;">✅ MonitorAgent 可用</h4>
+                                    <p style="color: #0c5460; margin: 5px 0 0 0;">可以正常使用系统监控功能</p>
+                                </div>
+                                '''
+                            else:
+                                status_html = '''
+                                <div style="padding: 10px; background: #f8d7da; border-radius: 5px; margin-bottom: 10px;">
+                                    <h4 style="color: #721c24; margin: 0;">❌ MonitorAgent 不可用</h4>
+                                    <p style="color: #856404; margin: 5px 0 0 0;">需要启动 MonitorAgent MCP 服务</p>
+                                </div>
+                                '''
+                            
+                            status_display = gr.HTML(value=status_html)
+                            
+                            # 按钮区域
+                            with gr.Row():
+                                monitor_start_btn = gr.Button(
+                                    "🚀 启动 MonitorAgent 服务", 
+                                    variant="primary", 
+                                    visible=not HAS_MONITOR_AGENT
+                                )
+                                monitor_refresh_btn = gr.Button("🔄 刷新系统状态", variant="primary")
+                            
+                            monitor_start_output = gr.Textbox(
+                                label="启动结果", 
+                                lines=4,
+                                visible=not HAS_MONITOR_AGENT,
+                                placeholder="启动结果将显示在这里..."
+                            )
+                            
+                            system_status_display = gr.HTML(
+                                value='<div style="padding: 15px; border: 1px solid #dee2e6; border-radius: 5px; background: #f8f9fa;">'
+                                    '<p style="color: #6c757d;">点击「刷新系统状态」按钮查看系统监控信息</p>'
+                                    '</div>', 
+                                label="系统监控信息"
+                            )
                             
                             gr.Markdown("#### 进程清理")
-                            process_clean_name = gr.Textbox(label="进程名称（可选，留空清理所有冗余进程）", placeholder="如：chrome")
-                            process_clean_btn = gr.Button("🧹 清理进程", variant="primary")
-                            process_clean_result = gr.Textbox(label="清理结果")
+                            process_clean_name = gr.Textbox(
+                                label="进程名称（可选，留空清理所有冗余进程）", 
+                                placeholder="例如：chrome, firefox, 或留空清理所有低占用进程"
+                            )
+                            process_clean_btn = gr.Button("🧹 清理选中进程", variant="primary")
+                            process_clean_result = gr.Textbox(label="清理结果", lines=2)
+                            
                         with gr.Column():
-                            gr.Markdown("#### 实时监控")
-                            monitor_auto_refresh = gr.Checkbox(label="自动刷新（每5秒）", value=False)
-                            monitor_interval = gr.Number(value=5, label="刷新间隔（秒）", minimum=1, maximum=60)
+                            gr.Markdown("#### 实时监控设置")
+                            monitor_auto_refresh = gr.Checkbox(
+                                label="启用自动刷新", 
+                                value=False,
+                                interactive=HAS_MONITOR_AGENT
+                            )
+                            monitor_interval = gr.Slider(
+                                minimum=1,
+                                maximum=60,
+                                value=5,
+                                step=1,
+                                label="刷新间隔（秒）",
+                                interactive=HAS_MONITOR_AGENT
+                            )
                 
                 # MediaAgent
                 with gr.Accordion("🎵 MediaAgent - 媒体控制", open=False):
@@ -1378,7 +1819,7 @@ def create_ui():
         
         # 任务执行
         # 执行任务（带loading状态）
-        def execute_with_loading(task, confirm):
+        def execute_with_loading(task, confirm, use_memory):
             """执行任务并显示loading状态"""
             if not task or not task.strip():
                 return (
@@ -1391,16 +1832,17 @@ def create_ui():
             
             # 显示执行中状态
             process_status = generate_process_status_bar(["生成推理链", "调用智能体", "任务执行"], 1)
-            reasoning_html = '<div class="reasoning-panel"><div class="reasoning-panel-content"><p><span class="loading-spinner"></span> 正在生成推理链...</p></div></div>'
+            mode_text = "记忆检索" if use_memory else "UITARS推理"
+            reasoning_html = f'<div class="reasoning-panel"><div class="reasoning-panel-content"><p><span class="loading-spinner"></span> 正在{mode_text}...</p></div></div>'
             
             # 执行任务
-            process_status_final, reasoning_html_final, result_text, result_summary, screenshots = execute_task(task, True, confirm)
+            process_status_final, reasoning_html_final, result_text, result_summary, screenshots = execute_task(task, use_memory, confirm)
             
             return process_status_final, reasoning_html_final, result_text, result_summary, screenshots
         
         execute_btn.click(
             fn=execute_with_loading,
-            inputs=[task_input, confirm_checkbox],
+            inputs=[task_input, confirm_checkbox, use_memory_checkbox],
             outputs=[process_status_bar, reasoning_output, result_output, result_summary_card, screenshot_gallery]
         )
         
@@ -1411,9 +1853,20 @@ def create_ui():
             outputs=[task_input]
         )
         
-        # 刷新历史
+        # 刷新历史（根据记忆模块状态）
+        def refresh_history_with_memory_state(use_memory):
+            return gr.update(choices=get_history_tasks(use_memory))
+        
         refresh_history_btn.click(
-            fn=lambda: gr.update(choices=get_history_tasks()),
+            fn=refresh_history_with_memory_state,
+            inputs=[use_memory_checkbox],
+            outputs=[history_dropdown]
+        )
+        
+        # 当记忆模块开关改变时，自动刷新历史指令列表
+        use_memory_checkbox.change(
+            fn=refresh_history_with_memory_state,
+            inputs=[use_memory_checkbox],
             outputs=[history_dropdown]
         )
         
@@ -1599,7 +2052,7 @@ def create_ui():
                 filter_agent = None if agent_filter == "全部" else agent_filter
                 html = generate_visualization_html(
                     filter_agent=filter_agent,
-                    time_range_days=int(time_days) if time_days else None,
+                    time_range_days=int(time_days) if time_days else 30,
                     layout=layout
                 )
                 return html
@@ -1698,45 +2151,68 @@ def create_ui():
                 result = monitor_agent.get_system_status()
                 if result["status"] == "success":
                     data = result["data"]
+                    cpu_info = data.get("cpu", {})
+                    memory_info = data.get("memory", {})
+                    disk_info = data.get("disk", {})
+                    top_processes = data.get("top_processes", [])
+                    
+                    cpu_percent = cpu_info.get("percent", 0)
+                    memory_percent = memory_info.get("percent", 0)
+                    memory_used_gb = memory_info.get("used_gb", 0)
+                    memory_total_gb = memory_info.get("total_gb", 0)
+                    disk_percent = disk_info.get("percent", 0)
+                    disk_used_gb = disk_info.get("used_gb", 0)
+                    disk_total_gb = disk_info.get("total_gb", 0)
+                    
                     html = f"""
                     <div style='padding: 15px;'>
                         <h3>系统状态</h3>
                         <table border='1' style='border-collapse: collapse; width: 100%;'>
-                            <tr><th>指标</th><th>值</th><th>百分比</th></tr>
+                            <tr><th>指标</th><th>值</th><th>百分比</th><th>状态</th></tr>
                             <tr>
                                 <td>CPU使用率</td>
-                                <td>{data.get('cpu_percent', 0):.1f}%</td>
+                                <td>{cpu_percent:.1f}% ({cpu_info.get('count', 'N/A')} 核心)</td>
                                 <td><div style='background: #e0e0e0; width: 100px; height: 20px;'>
-                                    <div style='background: #4CAF50; width: {data.get('cpu_percent', 0)}%; height: 100%;'></div>
+                                    <div style='background: #4CAF50; width: {cpu_percent}%; height: 100%;'></div>
                                 </div></td>
+                                <td>{cpu_info.get('status', 'N/A')}</td>
                             </tr>
                             <tr>
                                 <td>内存使用</td>
-                                <td>{data.get('memory_used_gb', 0):.2f}GB / {data.get('memory_total_gb', 0):.2f}GB</td>
+                                <td>{memory_used_gb:.2f}GB / {memory_total_gb:.2f}GB</td>
                                 <td><div style='background: #e0e0e0; width: 100px; height: 20px;'>
-                                    <div style='background: #2196F3; width: {data.get('memory_percent', 0)}%; height: 100%;'></div>
+                                    <div style='background: #2196F3; width: {memory_percent}%; height: 100%;'></div>
                                 </div></td>
+                                <td>{memory_info.get('status', 'N/A')}</td>
                             </tr>
                             <tr>
                                 <td>磁盘使用</td>
-                                <td>{data.get('disk_used_gb', 0):.2f}GB / {data.get('disk_total_gb', 0):.2f}GB</td>
+                                <td>{disk_used_gb:.2f}GB / {disk_total_gb:.2f}GB</td>
                                 <td><div style='background: #e0e0e0; width: 100px; height: 20px;'>
-                                    <div style='background: #FF9800; width: {data.get('disk_percent', 0)}%; height: 100%;'></div>
+                                    <div style='background: #FF9800; width: {disk_percent}%; height: 100%;'></div>
                                 </div></td>
+                                <td>{disk_info.get('status', 'N/A')}</td>
                             </tr>
                         </table>
-                        <h4>CPU占用前5进程：</h4>
-                        <ul>
                     """
-                    for proc in data.get('top_processes', [])[:5]:
-                        html += f"<li>{proc.get('name', 'N/A')} (PID: {proc.get('pid', 'N/A')}) - CPU: {proc.get('cpu_percent', 0):.1f}%</li>"
-                    html += "</ul></div>"
+                    
+                    if top_processes:
+                        html += "<h4>CPU占用前5进程：</h4><ul style='margin-top: 10px;'>"
+                        for proc in top_processes[:5]:
+                            name = proc.get('name', '未知进程')
+                            pid = proc.get('pid', 'N/A')
+                            cpu_percent = proc.get('cpu_percent', 0)
+                            memory_percent = proc.get('memory_percent', 0)
+                            html += f"<li><strong>{name}</strong> (PID: {pid}) - CPU: {cpu_percent:.1f}%, 内存: {memory_percent:.1f}%</li>"
+                        html += "</ul>"
+                    
+                    html += "</div>"
                     return html
                 else:
                     return f"<p>获取系统状态失败: {result.get('msg', '未知错误')}</p>"
             except Exception as e:
                 return f"<p>获取系统状态失败: {e}</p>"
-        
+                
         def clean_background_process(process_name: str):
             if not HAS_MONITOR_AGENT:
                 return "MonitorAgent不可用"
@@ -1748,7 +2224,7 @@ def create_ui():
         
         monitor_refresh_btn.click(fn=refresh_system_status, outputs=[system_status_display])
         process_clean_btn.click(fn=clean_background_process, inputs=[process_clean_name], outputs=[process_clean_result])
-        
+
         # 媒体控制
         def play_media_file(media_path: str):
             if not HAS_MEDIA_AGENT:
@@ -1922,4 +2398,3 @@ if __name__ == "__main__":
         share=False,
         show_error=True
     )
-

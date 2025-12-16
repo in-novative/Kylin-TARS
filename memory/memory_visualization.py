@@ -29,6 +29,49 @@ try:
     import matplotlib
     matplotlib.use('Agg')  # 非交互式后端
     HAS_MATPLOTLIB = True
+    
+    # 配置中文字体支持
+    def setup_chinese_font():
+        """配置 matplotlib 使用支持中文的字体"""
+        try:
+            # 尝试设置中文字体
+            # 优先级：思源黑体 > Noto Sans CJK > 微软雅黑 > SimHei
+            chinese_fonts = [
+                'Source Han Sans CN',
+                'Noto Sans CJK SC',
+                'Microsoft YaHei',
+                'SimHei',
+                'WenQuanYi Micro Hei',
+                'DejaVu Sans'  # 最后回退到默认字体
+            ]
+            
+            # 获取系统可用字体
+            from matplotlib.font_manager import FontProperties, findfont
+            
+            for font_name in chinese_fonts:
+                try:
+                    # 尝试查找字体
+                    font_path = findfont(FontProperties(family=font_name))
+                    if font_path and font_path != findfont(FontProperties(family='DejaVu Sans')):
+                        # 设置默认字体
+                        matplotlib.rcParams['font.sans-serif'] = [font_name] + matplotlib.rcParams['font.sans-serif']
+                        matplotlib.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+                        print(f"[INFO] 已设置中文字体: {font_name}")
+                        return font_name
+                except:
+                    continue
+            
+            # 如果没有找到中文字体，至少设置 unicode_minus
+            matplotlib.rcParams['axes.unicode_minus'] = False
+            print("[WARNING] 未找到中文字体，可能无法正确显示中文")
+            return None
+        except Exception as e:
+            print(f"[WARNING] 字体配置失败: {e}")
+            return None
+    
+    # 初始化字体配置
+    _chinese_font = setup_chinese_font()
+    
 except ImportError:
     HAS_MATPLOTLIB = False
     print("提示: matplotlib 未安装，可视化功能不可用")
@@ -134,60 +177,99 @@ def visualize_graph_to_html(
     try:
         import matplotlib.pyplot as plt
         from matplotlib import cm
+        from matplotlib.font_manager import FontProperties
         import base64
         from io import BytesIO
+        import warnings
         
-        # 设置图形大小
-        plt.figure(figsize=(12, 8))
+        # 临时禁用字体警告
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=UserWarning, message='.*Glyph.*missing.*')
+            
+            # 设置图形大小
+            plt.figure(figsize=(12, 8))
+            
+            # 获取中文字体（如果已配置）
+            chinese_font = None
+            if HAS_MATPLOTLIB:
+                try:
+                    # 尝试使用已配置的中文字体
+                    font_list = matplotlib.rcParams.get('font.sans-serif', [])
+                    if font_list:
+                        chinese_font = font_list[0]
+                except:
+                    pass
+            
+            # 创建字体属性对象
+            if chinese_font:
+                font_prop = FontProperties(family=chinese_font, size=8)
+                title_font_prop = FontProperties(family=chinese_font, size=16, weight='bold')
+            else:
+                font_prop = FontProperties(size=8)
+                title_font_prop = FontProperties(size=16, weight='bold')
+            
+            # 选择布局
+            if layout == "spring":
+                pos = nx.spring_layout(G, k=1, iterations=50)
+            elif layout == "circular":
+                pos = nx.circular_layout(G)
+            else:
+                pos = nx.spring_layout(G)
+            
+            # 按类型分组节点
+            task_nodes = [n for n, d in G.nodes(data=True) if d.get("type") == "task"]
+            agent_nodes = [n for n, d in G.nodes(data=True) if d.get("type") == "agent"]
+            tool_nodes = [n for n, d in G.nodes(data=True) if d.get("type") == "tool"]
+            
+            # 绘制边
+            nx.draw_networkx_edges(G, pos, alpha=0.3, edge_color='gray', arrows=True, arrowsize=10)
+            
+            # 绘制节点（使用英文标签）
+            if task_nodes:
+                nx.draw_networkx_nodes(G, pos, nodelist=task_nodes, node_color='lightblue', 
+                                      node_size=1000, alpha=0.8, label="Task")
+            if agent_nodes:
+                nx.draw_networkx_nodes(G, pos, nodelist=agent_nodes, node_color='lightgreen', 
+                                      node_size=800, alpha=0.8, label="Agent")
+            if tool_nodes:
+                nx.draw_networkx_nodes(G, pos, nodelist=tool_nodes, node_color='lightcoral', 
+                                      node_size=600, alpha=0.8, label="Tool")
+            
+            # 绘制标签（使用 font_family 参数）
+            labels = {n: d.get("label", n) for n, d in G.nodes(data=True)}
+            if chinese_font:
+                # networkx 的 draw_networkx_labels 不支持 fontproperties，使用 font_family
+                nx.draw_networkx_labels(G, pos, labels, font_size=8, font_family=chinese_font)
+            else:
+                nx.draw_networkx_labels(G, pos, labels, font_size=8, font_family='sans-serif')
+            
+            plt.axis('off')
+            
+            # 设置标题（使用英文）
+            if chinese_font:
+                plt.title("Memory Trajectory Relationship Graph", fontproperties=title_font_prop)
+            else:
+                plt.title("Memory Trajectory Relationship Graph", fontsize=16, fontweight='bold')
+            
+            # 设置图例（使用字体属性）
+            legend = plt.legend(loc='upper right')
+            if chinese_font and legend:
+                for text in legend.get_texts():
+                    text.set_fontproperties(font_prop)
+            
+            # 转换为base64图片（在 warnings 块内，避免字体警告）
+            buffer = BytesIO()
+            plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+            buffer.seek(0)
+            image_base64 = base64.b64encode(buffer.read()).decode()
+            plt.close()
         
-        # 选择布局
-        if layout == "spring":
-            pos = nx.spring_layout(G, k=1, iterations=50)
-        elif layout == "circular":
-            pos = nx.circular_layout(G)
-        else:
-            pos = nx.spring_layout(G)
-        
-        # 按类型分组节点
-        task_nodes = [n for n, d in G.nodes(data=True) if d.get("type") == "task"]
-        agent_nodes = [n for n, d in G.nodes(data=True) if d.get("type") == "agent"]
-        tool_nodes = [n for n, d in G.nodes(data=True) if d.get("type") == "tool"]
-        
-        # 绘制边
-        nx.draw_networkx_edges(G, pos, alpha=0.3, edge_color='gray', arrows=True, arrowsize=10)
-        
-        # 绘制节点
-        if task_nodes:
-            nx.draw_networkx_nodes(G, pos, nodelist=task_nodes, node_color='lightblue', 
-                                  node_size=1000, alpha=0.8, label="任务")
-        if agent_nodes:
-            nx.draw_networkx_nodes(G, pos, nodelist=agent_nodes, node_color='lightgreen', 
-                                  node_size=800, alpha=0.8, label="智能体")
-        if tool_nodes:
-            nx.draw_networkx_nodes(G, pos, nodelist=tool_nodes, node_color='lightcoral', 
-                                  node_size=600, alpha=0.8, label="工具")
-        
-        # 绘制标签
-        labels = {n: d.get("label", n) for n, d in G.nodes(data=True)}
-        nx.draw_networkx_labels(G, pos, labels, font_size=8, font_family='sans-serif')
-        
-        plt.axis('off')
-        plt.title("记忆轨迹关联图", fontsize=16, fontweight='bold')
-        plt.legend(loc='upper right')
-        
-        # 转换为base64图片
-        buffer = BytesIO()
-        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
-        buffer.seek(0)
-        image_base64 = base64.b64encode(buffer.read()).decode()
-        plt.close()
-        
-        # 生成HTML
+        # 生成HTML（使用英文）
         html = f"""
         <div style="text-align: center;">
             <img src="data:image/png;base64,{image_base64}" style="max-width: 100%; height: auto;" />
             <p style="margin-top: 10px; color: #666;">
-                节点统计: 任务 {len(task_nodes)} | 智能体 {len(agent_nodes)} | 工具 {len(tool_nodes)} | 边 {G.number_of_edges()}
+                Node Statistics: Tasks {len(task_nodes)} | Agents {len(agent_nodes)} | Tools {len(tool_nodes)} | Edges {G.number_of_edges()}
             </p>
         </div>
         """

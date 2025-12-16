@@ -1,0 +1,2 @@
+2025-12-16 14:12:21,855 - setting_agent - INFO - 启动SettingsAgent MCP服务
+2025-12-16 14:12:21,855 - setting_agent - WARNING - MCP Server (com.kylin.mcp.MasterAgent) 未启动，跳过注册

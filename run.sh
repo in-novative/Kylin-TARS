@@ -8,9 +8,6 @@
 #   - AppAgent: 应用管理
 #   - MonitorAgent: 系统监控
 #   - MediaAgent: 媒体控制
-#
-# 使用方式：
-#   ./start_upgrade.sh
 
 set -e
 
@@ -61,12 +58,38 @@ echo ""
 # 子智能体目录
 AGENT_DIR="$PROJECT_ROOT/desktop/agent_project/src"
 
+# 设置Python环境变量，使虚拟环境能够访问系统包（特别是PyGObject）
+# 这对于openKylin系统很重要，因为PyGObject通过系统包python3-gi提供
+export PYTHONPATH="/usr/lib/python3/dist-packages:$PYTHONPATH"
+export GI_TYPELIB_PATH="/usr/lib/x86_64-linux-gnu/girepository-1.0:/usr/share/gir-1.0:$GI_TYPELIB_PATH"
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+
+# 设置UITARS API地址（如果未设置，则使用VLLM_API_BASE）
+export UITARS_API_BASE="${UITARS_API_BASE:-}"
+
+# 设置D-Bus系统总线地址，蓝牙服务需要使用
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket
+
 echo -e "${YELLOW}开始启动服务...${NC}"
+echo ""
+echo -e "${CYAN}[环境配置]${NC}"
+echo "  PYTHONPATH: $PYTHONPATH"
+echo "  GI_TYPELIB_PATH: $GI_TYPELIB_PATH"
+if [ -n "$UITARS_API_BASE" ]; then
+    echo "  UITARS_API_BASE: $UITARS_API_BASE (外部API)"
+else
+    echo "  VLLM_API_BASE: $VLLM_API_BASE (本地vLLM)"
+fi
 echo ""
 
 # 在 D-Bus 会话中启动所有服务
 dbus-run-session -- /bin/bash -c "
     export PATH='$FULL_PATH'
+    export PYTHONPATH='$PYTHONPATH'
+    export GI_TYPELIB_PATH='$GI_TYPELIB_PATH'
+    export LD_LIBRARY_PATH='$LD_LIBRARY_PATH'
+    export UITARS_API_BASE='$UITARS_API_BASE'
+    export VLLM_API_BASE='$VLLM_API_BASE'
     
     echo -e '${GREEN}[1/6] 启动 MCP Server${NC}'
     '$PYTHON_EXEC' '$PROJECT_ROOT/mcp_system/mcp_server/mcp_server.py' &

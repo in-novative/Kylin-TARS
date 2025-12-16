@@ -1,0 +1,3 @@
+2025-12-16 13:53:32,789 - media_agent - INFO - 启动 MediaAgent MCP 服务
+2025-12-16 13:53:32,790 - media_agent - WARNING - MCP Server (com.kylin.mcp.MasterAgent) 未启动，跳过注册
+2025-12-16 13:53:32,790 - media_agent - INFO - MediaAgent 服务已启动，等待调用...

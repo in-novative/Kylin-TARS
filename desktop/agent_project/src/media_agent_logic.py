@@ -16,6 +16,7 @@ import time
 import dbus
 from typing import Dict, Optional
 from datetime import datetime
+import shutil
 
 
 class MediaAgentLogic:
@@ -30,16 +31,25 @@ class MediaAgentLogic:
         """截取屏幕"""
         timestamp = int(time.time())
         screenshot_path = os.path.join(self.screenshot_dir, f"{prefix}_{timestamp}.png")
-        
+
         try:
-            subprocess.run(["scrot", "-d", "1", screenshot_path], check=True, capture_output=True)
-            return screenshot_path
-        except:
-            try:
+            # 使用 grim 截图（适用于 Wayland 环境）
+            if shutil.which("grim"):
+                subprocess.run(["grim", screenshot_path], check=True, capture_output=True)
+                return screenshot_path
+            # 检查 gnome-screenshot 是否可用
+            elif shutil.which("gnome-screenshot"):
                 subprocess.run(["gnome-screenshot", "-f", screenshot_path], check=True, capture_output=True)
                 return screenshot_path
-            except:
+            else:
+                print("未找到可用的截图工具（grim 或 gnome-screenshot）")
                 return None
+        except subprocess.CalledProcessError as e:
+            print(f"截图失败：{e}")
+            return None
+        except Exception as e:
+            print(f"未知错误：{e}")
+            return None
     
     def make_response(self, status: str, msg: str, data: Dict = None, screenshot: str = None) -> Dict:
         """生成标准响应"""

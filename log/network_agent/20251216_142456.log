@@ -1,0 +1,3 @@
+2025-12-16 14:24:56,052 - network_agent - INFO - 启动 NetworkAgent MCP 服务
+2025-12-16 14:24:56,053 - network_agent - ERROR - [ERROR] 注册到 MCP Server 失败：'Logger' object is not callable
+2025-12-16 14:24:56,053 - network_agent - INFO - NetworkAgent 服务已启动，等待调用...

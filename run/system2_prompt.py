@@ -15,6 +15,7 @@ System-2 可解释推理模板 - openKylin GUI Agent
 日期：2024-12
 """
 
+import os
 import requests
 import base64
 import json
@@ -34,8 +35,11 @@ except ImportError:
 # ============================================================
 # API 配置
 # ============================================================
-# 支持环境变量配置，优先使用环境变量VLLM_API_BASE
-API_BASE = os.getenv("VLLM_API_BASE", "http://localhost:8000")
+# 支持环境变量配置，优先使用UITARS_API_BASE（外部API），其次VLLM_API_BASE（本地vLLM）
+UITARS_API_BASE = os.getenv("UITARS_API_BASE", None)
+VLLM_API_BASE = os.getenv("VLLM_API_BASE", "http://localhost:8000")
+# 优先使用外部UITARS API，如果未设置则使用本地vLLM
+API_BASE = UITARS_API_BASE if UITARS_API_BASE else VLLM_API_BASE
 MODEL_NAME = os.getenv("VLLM_MODEL_NAME", "/data1/models/UI-TARS-1.5-7B")
 
 # 导入模型适配器

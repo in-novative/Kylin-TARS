@@ -1,0 +1,12 @@
+2025-12-13 12:03:52,119 - mcp_server - INFO - MCP Server initialized and registered on DBus
+2025-12-13 12:03:52,119 - mcp_server - INFO - Tool added: echo
+2025-12-13 12:03:52,120 - mcp_server - INFO - Heartbeat monitor started
+2025-12-13 12:03:52,120 - mcp_server - INFO - MCP Server started successfully
+2025-12-13 12:03:52,120 - mcp_server - INFO - Service name: com.kylin.mcp.MasterAgent
+2025-12-13 12:03:52,120 - mcp_server - INFO - Object path: /com/kylin/mcp/MasterAgent
+2025-12-13 12:03:52,120 - mcp_server - INFO - Interface name: com.kylin.mcp.MasterAgent
+2025-12-13 12:03:56,172 - mcp_server - INFO - Child agent registered: settings_agent
+2025-12-13 12:03:57,176 - mcp_server - INFO - Child agent registered: network_agent
+2025-12-13 12:03:58,190 - mcp_server - INFO - Child agent registered: app_agent
+2025-12-13 12:03:59,188 - mcp_server - INFO - Child agent registered: monitor_agent
+2025-12-13 12:04:00,184 - mcp_server - INFO - Child agent registered: media_agent
