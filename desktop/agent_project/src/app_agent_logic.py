@@ -283,7 +283,7 @@ class AppAgentLogic:
                             running_apps.append({
                                 "name": proc_name,
                                 "pid": proc_info['pid'],
-                                "cmdline": cmdline[:100]  # 截断过长的命令行
+                                "cmdline": cmdline
                             })
                             seen_apps.add(proc_name)
                             

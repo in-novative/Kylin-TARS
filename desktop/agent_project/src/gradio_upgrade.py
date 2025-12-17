@@ -23,6 +23,12 @@ import time
 import subprocess
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+
+# 设置中文字体
+rcParams['font.sans-serif'] = ['WenQuanYi Zen Hei', 'Noto Sans CJK']  # 替换为系统中可用的中文字体
+rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 # 项目路径配置
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1299,9 +1305,10 @@ def list_running() -> list:
     result = app_agent.list_running_apps()
     
     if result["status"] == "success":
-        return [[a.get("name", ""), a.get("title", "")[:40], a.get("pid", "")] 
-                for a in result["data"][:20]]
-    return []
+        return [[a.get("pid", ""), a.get("name", "")[:40], a.get("cmdline", "")] \
+                for a in result["data"]["apps"]]
+    else:
+        return []
 
 # ============================================================
 # 构建 Gradio 界面
@@ -1492,7 +1499,7 @@ def create_ui():
                             bluetooth_device = gr.Textbox(label="设备名称（连接时填写）", placeholder="设备MAC地址或名称", interactive=True)
                             bluetooth_btn = gr.Button("📶 执行操作", variant="primary", interactive=True)
                             bluetooth_msg = gr.Textbox(label="操作结果", lines=5)
-                
+
                 # NetworkAgent
                 with gr.Accordion("🌐 NetworkAgent - 网络管理", open=False):
                     with gr.Row():
@@ -1505,8 +1512,8 @@ def create_ui():
                         with gr.Column():
                             gr.Markdown("#### 代理设置")
                             proxy_host = gr.Textbox(label="主机", placeholder="127.0.0.1")
-                            proxy_port = gr.Number(label="端口", value=1080)
-                            proxy_type = gr.Dropdown(label="类型", choices=["http", "https", "socks"], value="http")
+                            proxy_port = gr.Number(label="端口", value=1080, precision=0, interactive=True)
+                            proxy_type = gr.Dropdown(label="类型", choices=["http", "https", "socks"], value="http", interactive=True)
                             with gr.Row():
                                 proxy_set_btn = gr.Button("✓ 设置代理")
                                 proxy_clear_btn = gr.Button("✗ 清除代理")
@@ -1535,7 +1542,7 @@ def create_ui():
                         with gr.Column():
                             gr.Markdown("#### 运行中的应用")
                             running_refresh_btn = gr.Button("🔄 刷新列表")
-                            running_apps = gr.Dataframe(headers=["应用", "标题", "PID"], label="运行中")
+                            running_apps = gr.Dataframe(headers=["PID", "应用", "cmdline"], label="运行中")
                 
                 # MonitorAgent
                 with gr.Accordion("📊 MonitorAgent - 系统监控", open=False):
@@ -1975,7 +1982,7 @@ def create_ui():
             try:
                 result = network_agent.speed_test()
                 if result.get("status") == "success":
-                    data = result.get("data", {})
+                    data = reult.get("data", {})
                     download = data.get("download_mbps", 0)
                     upload = data.get("upload_mbps", 0)
                     ping = data.get("ping_ms", 0)
@@ -1993,6 +2000,44 @@ def create_ui():
         
         speed_test_btn.click(fn=run_speed_test, outputs=[speed_test_result])
         
+        # 代理设置
+        def set_proxy(proxy_host, proxy_port, proxy_type):
+            proxy_addr = f"{proxy_type}://{proxy_host}:{proxy_port}"
+            add_log(f"设置代理:{proxy_addr}", "info")
+            try:
+                if proxy_type == "http":
+                    network_agent.set_proxy(http_proxy=proxy_addr)
+                elif proxy_type == "https":
+                    network_agent.set_proxy(https_proxy=proxy_addr)
+                elif proxy_type == "socks":
+                    network_agent.set_proxy(socks_proxy=proxy_addr)
+                else:
+                    network_agent.set_proxy(no_proxy=proxy_addr)
+                return f"✓ 成功设置代理: {proxy_addr}"
+            except Exception as e:
+                return f"✗ 错误: {e}"
+
+        proxy_set_btn.click(
+            fn=set_proxy,
+            inputs=[proxy_host, proxy_port, proxy_type],
+            outputs=[proxy_msg]
+        )
+
+        # 清除代理
+        def clear_proxy():
+            add_log("清除代理", "info")
+            try:
+                network_agent.clear_proxy()
+                return "✓ 已清除代理设置"
+            except Exception as e:
+                return f"✗ 错误: {e}"
+
+        proxy_clear_btn.click(
+            fn=clear_proxy,
+            inputs=[],
+            outputs=[proxy_msg]
+        ) 
+
         # 应用管理
         app_launch_btn.click(
             fn=launch_application,
