@@ -1,0 +1,85 @@
+2025-12-17 21:20:25,978 - MCP Server - WARNING - 协作日志模块未找到，日志记录功能不可用
+2025-12-17 21:20:25,980 - MCP Server - INFO - MCP Server initialized and registered on DBus
+2025-12-17 21:20:25,981 - MCP Server - INFO - Tool added: echo
+2025-12-17 21:20:25,981 - MCP Server - INFO - Heartbeat monitor started (3s interval)
+2025-12-17 21:20:25,981 - MCP Server - INFO - ============================================================
+2025-12-17 21:20:25,981 - MCP Server - INFO - MCP Server started successfully
+2025-12-17 21:20:25,981 - MCP Server - INFO - ============================================================
+2025-12-17 21:20:25,982 - MCP Server - INFO - Service name: com.kylin.mcp.MasterAgent
+2025-12-17 21:20:25,982 - MCP Server - INFO - Object path: /com/kylin/mcp/MasterAgent
+2025-12-17 21:20:25,982 - MCP Server - INFO - Interface name: com.kylin.mcp.MasterAgent
+2025-12-17 21:20:25,982 - MCP Server - INFO - 
+2025-12-17 21:20:25,982 - MCP Server - INFO - 等待子智能体注册...
+2025-12-17 21:20:25,982 - MCP Server - INFO - ============================================================
+2025-12-17 21:20:28,989 - file_agent - INFO - 启动FileAgent MCP服务
+2025-12-17 21:20:28,991 - MCP Server - INFO - Child agent registered: file_agent (instance: file_agent_1765977628)
+2025-12-17 21:20:28,991 - MCP Server - INFO -   Tools: ['file_agent.search_file', 'file_agent.move_to_trash', 'file_agent.batch_rename']
+2025-12-17 21:20:28,992 - file_agent - INFO - FileAgent已成功注册到MCP Server
+2025-12-17 21:20:29,991 - setting_agent - INFO - 启动SettingsAgent MCP服务
+2025-12-17 21:20:29,993 - MCP Server - INFO - Child agent registered: settings_agent (instance: settings_agent_1765977629)
+2025-12-17 21:20:29,994 - MCP Server - INFO -   Tools: ['settings_agent.change_wallpaper', 'settings_agent.adjust_volume', 'settings_agent.bluetooth_manage']
+2025-12-17 21:20:29,994 - setting_agent - INFO - SettingsAgent已成功注册到MCP Server
+2025-12-17 21:20:31,002 - network_agent - INFO - 启动 NetworkAgent MCP 服务
+2025-12-17 21:20:31,004 - MCP Server - INFO - Child agent registered: network_agent (instance: network_agent_1765977631)
+2025-12-17 21:20:31,004 - MCP Server - INFO -   Tools: ['network_agent.list_wifi', 'network_agent.connect_wifi', 'network_agent.disconnect_wifi', 'network_agent.get_wifi_status', 'network_agent.set_proxy', 'network_agent.clear_proxy', 'network_agent.get_proxy_status', 'network_agent.speed_test', 'network_agent.get_network_status']
+2025-12-17 21:20:31,005 - network_agent - INFO - NetworkAgent 已成功注册到 MCP Server
+2025-12-17 21:20:31,005 - network_agent - INFO - 工具: ['network_agent.list_wifi', 'network_agent.connect_wifi', 'network_agent.disconnect_wifi', 'network_agent.get_wifi_status', 'network_agent.set_proxy', 'network_agent.clear_proxy', 'network_agent.get_proxy_status', 'network_agent.speed_test', 'network_agent.get_network_status']
+2025-12-17 21:20:31,005 - network_agent - INFO - NetworkAgent 服务已启动，等待调用...
+2025-12-17 21:20:32,006 - app_agent - INFO - 启动 AppAgent MCP 服务
+2025-12-17 21:20:32,009 - MCP Server - INFO - Child agent registered: app_agent (instance: app_agent_1765977632)
+2025-12-17 21:20:32,009 - MCP Server - INFO -   Tools: ['app_agent.find_app', 'app_agent.launch_app', 'app_agent.close_app', 'app_agent.list_running_apps', 'app_agent.is_app_running', 'app_agent.app_quick_operation']
+2025-12-17 21:20:32,009 - app_agent - INFO - AppAgent 已成功注册到 MCP Server
+2025-12-17 21:20:32,009 - app_agent - INFO - 工具: ['app_agent.find_app', 'app_agent.launch_app', 'app_agent.close_app', 'app_agent.list_running_apps', 'app_agent.is_app_running', 'app_agent.app_quick_operation']
+2025-12-17 21:20:32,009 - app_agent - INFO - AppAgent 服务已启动，等待调用...
+2025-12-17 21:20:33,010 - monitor_agent - INFO -  启动 MonitorAgent MCP 服务
+2025-12-17 21:20:33,012 - MCP Server - INFO - Child agent registered: monitor_agent (instance: monitor_agent_1765977633)
+2025-12-17 21:20:33,013 - MCP Server - INFO -   Tools: ['monitor_agent.get_system_status', 'monitor_agent.clean_background_process', 'monitor_agent.monitor_agent_status']
+2025-12-17 21:20:33,013 - monitor_agent - INFO - MonitorAgent 已成功注册到 MCP Server
+2025-12-17 21:20:33,013 - monitor_agent - INFO -  MonitorAgent 服务已启动，等待调用...
+2025-12-17 21:20:34,006 - media_agent - INFO - 启动 MediaAgent MCP 服务
+2025-12-17 21:20:34,009 - MCP Server - INFO - Child agent registered: media_agent (instance: media_agent_1765977634)
+2025-12-17 21:20:34,009 - MCP Server - INFO -   Tools: ['media_agent.play_media', 'media_agent.media_control', 'media_agent.capture_media_frame']
+2025-12-17 21:20:34,009 - media_agent - INFO - MediaAgent 已成功注册到 MCP Server
+2025-12-17 21:20:34,009 - media_agent - INFO - MediaAgent 服务已启动，等待调用...
+2025-12-17 21:20:55,982 - MCP Server - INFO - 📡 广播状态: file_agent (file_agent_1765977628) -> busy
+2025-12-17 21:20:55,982 - MCP Server - INFO - 📡 广播状态: settings_agent (settings_agent_1765977629) -> busy
+2025-12-17 21:20:55,982 - MCP Server - INFO - 📡 广播状态: network_agent (network_agent_1765977631) -> busy
+2025-12-17 21:20:55,982 - MCP Server - INFO - 📡 广播状态: app_agent (app_agent_1765977632) -> busy
+2025-12-17 21:20:55,982 - MCP Server - INFO - 📡 广播状态: monitor_agent (monitor_agent_1765977633) -> busy
+2025-12-17 21:20:55,982 - MCP Server - INFO - 📡 广播状态: media_agent (media_agent_1765977634) -> busy
+Traceback (most recent call last):
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/gradio/queueing.py", line 763, in process_events
+    response = await route_utils.call_process_api(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/gradio/route_utils.py", line 354, in call_process_api
+    output = await app.get_blocks().process_api(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/gradio/blocks.py", line 2106, in process_api
+    result = await self.call_function(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/gradio/blocks.py", line 1588, in call_function
+    prediction = await anyio.to_thread.run_sync(  # type: ignore
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/anyio/to_thread.py", line 61, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2525, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 986, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/gradio/utils.py", line 1048, in wrapper
+    response = f(*args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^
+  File "/data/usershare/Kylin-TARS/desktop/agent_project/src/gradio_upgrade.py", line 2281, in rebuild_timer
+    Timer(monitor_interval.value).tick(
+  File "/data/usershare/Kylin-TARS/venv_2/lib/python3.12/site-packages/gradio/events.py", line 699, in event_trigger
+    raise AttributeError(
+AttributeError: Cannot call tick outside of a gradio.Blocks context.
+2025-12-17 21:21:55,983 - MCP Server - INFO - 📡 广播状态: file_agent (file_agent_1765977628) -> offline
+2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: settings_agent (settings_agent_1765977629) -> offline
+2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: network_agent (network_agent_1765977631) -> offline
+2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: app_agent (app_agent_1765977632) -> offline
+2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: monitor_agent (monitor_agent_1765977633) -> offline
+2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: media_agent (media_agent_1765977634) -> offline

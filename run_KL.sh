@@ -15,6 +15,11 @@
 #   - MonitorAgent: 系统监控
 #   - MediaAgent: 媒体控制
 
+# 这对于openKylin系统很重要，因为PyGObject通过系统包python3-gi提供
+export PYTHONPATH="/usr/lib/python3/dist-packages:$PYTHONPATH"
+export GI_TYPELIB_PATH="/usr/lib/x86_64-linux-gnu/girepository-1.0:/usr/share/gir-1.0:$GI_TYPELIB_PATH"
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+
 # 使用外部大模型 API
 export UITARS_API_BASE="https://xiaoai.plus/v1"
 export VLLM_MODEL_NAME="gpt-4o"
