@@ -12,9 +12,12 @@ AppAgent 核心逻辑 - 应用管理智能体
 """
 
 import os
-import subprocess
+import dbus
+import shlex, subprocess
 import time
+import shutil
 import psutil
+from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -121,66 +124,77 @@ class AppAgentLogic:
         
     # ==================== 应用启动 ====================
     
-    def launch_app(self, app_name: str, args: List[str] = None) -> Dict:
+    def launch_app(self, app_name: str, args: List[str] = []) -> Dict:
         """
-        启动应用
-        
-        Args:
-            app_name: 应用名称或路径
-            args: 启动参数（可选）
+        启动应用（Wayland 安全版）
         """
         try:
-            # 先查找应用
             find_result = self.find_app(app_name)
             if find_result["status"] == "error":
                 return find_result
-            
+
             app_path = find_result["data"].get("app_path")
             desktop_file = find_result["data"].get("desktop_file")
-            
-            # 构建启动命令
+
+            # ---- 构建 cmd ----
             if app_path:
-                cmd = [app_path]
+                cmd = [shlex.quote(app_path)]
             elif desktop_file:
-                # 使用 gio launch 启动桌面文件
+                desktop_file = str(Path(desktop_file).expanduser().resolve())
                 cmd = ["gio", "launch", desktop_file]
             else:
-                # 直接使用应用名
+                full_path = shutil.which(app_name)
+                if not full_path:
+                    return self.make_response("error", f"{app_name} not found in $PATH")
                 cmd = [app_name]
-            
-            if args:
-                cmd.extend(args)
-            
-            # 启动应用（后台运行）
+            cmd.extend(args)
+
+            # ---- 启动 ----
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True
             )
-            
-            # 等待一下确保启动
-            time.sleep(1)
-            
-            # 检查进程是否还在运行
+
+            # ---- Wayland 等待窗口 ----
+            def wait_gnome_wayland_window(pid, timeout=10):
+                """GNOME Wayland 专用：等 pid 出现在 Shell 窗口列表"""
+                try:
+                    bus = dbus.SessionBus()
+                    shell = bus.get_object('org.gnome.Shell',
+                                             '/org/gnome/Shell/Introspect')
+                    intro = dbus.Interface(shell, 'org.gnome.Shell.Introspect')
+                    for _ in range(timeout * 4):
+                        if str(pid) in intro.GetWindows():
+                            return True
+                        time.sleep(0.25)
+                except Exception:
+                    pass
+                return False
+
+            # 1. 进程级兜底
             if process.poll() is None:
-                screenshot = self.capture_screenshot("app_launched")
-                return self.make_response(
-                    "success",
-                    f"应用已启动: {app_name}",
-                    {
-                        "app_name": app_name,
-                        "pid": process.pid,
-                        "launched": True
-                    },
-                    screenshot
-                )
+                # 2. 窗口级检测（Wayland 专用）
+                if wait_gnome_wayland_window(process.pid):
+                    screenshot = self.capture_screenshot("app_launched")
+                    return self.make_response(
+                        "success",
+                        f"应用已启动: {app_name}",
+                        {"app_name": app_name, "pid": process.pid, "launched": True},
+                        screenshot
+                    )
+                else:
+                    return self.make_response(
+                        "error",
+                        f"应用启动超时: {app_name}（进程存在，但 Wayland 窗口未出现）"
+                    )
             else:
                 return self.make_response(
                     "error",
                     f"应用启动失败: {app_name}（进程立即退出）"
                 )
-                
+
         except FileNotFoundError:
             return self.make_response("error", f"应用不存在: {app_name}")
         except Exception as e:

@@ -22,6 +22,8 @@ import json
 import time
 import subprocess
 import ipaddress
+import threading
+from gradio import Timer
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -1614,7 +1616,8 @@ def create_ui():
                                 value=5,
                                 step=1,
                                 label="刷新间隔（秒）",
-                                interactive=HAS_MONITOR_AGENT
+                                interactive=HAS_MONITOR_AGENT,
+                                visible=HAS_MONITOR_AGENT
                             )
                 
                 # MediaAgent
@@ -2195,6 +2198,7 @@ def create_ui():
         
         # 系统监控
         def refresh_system_status():
+            print("function refresh_system_status call")
             if not HAS_MONITOR_AGENT:
                 return "<p>MonitorAgent不可用</p>"
             try:
@@ -2271,7 +2275,16 @@ def create_ui():
                 return result.get("msg", "清理完成")
             except Exception as e:
                 return f"清理失败: {e}"
-        
+
+        rebuild_trig = gr.Textbox(visible=False)
+        def rebuild_timer():                       # 仍在 Blocks 上下文中
+            Timer(monitor_interval.value).tick(
+                fn=refresh_system_status, inputs=[], outputs=system_status_display
+            )
+            return gr.update()
+        monitor_auto_refresh.change(fn=rebuild_timer, outputs=[rebuild_trig])
+        monitor_interval.change(fn=rebuild_timer, outputs=[rebuild_trig])
+
         monitor_refresh_btn.click(fn=refresh_system_status, outputs=[system_status_display])
         process_clean_btn.click(fn=clean_background_process, inputs=[process_clean_name], outputs=[process_clean_result])
 
