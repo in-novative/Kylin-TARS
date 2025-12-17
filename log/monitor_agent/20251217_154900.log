@@ -1,0 +1,3 @@
+2025-12-17 15:49:00,662 - monitor_agent - INFO -  启动 MonitorAgent MCP 服务
+2025-12-17 15:49:00,664 - monitor_agent - INFO - MonitorAgent 已成功注册到 MCP Server
+2025-12-17 15:49:00,664 - monitor_agent - INFO -  MonitorAgent 服务已启动，等待调用...

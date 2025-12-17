@@ -21,6 +21,7 @@ import os
 import json
 import time
 import subprocess
+import ipaddress
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -1511,9 +1512,9 @@ def create_ui():
                             wifi_list = gr.Dataframe(headers=["名称", "信号", "安全性"], label="WiFi 列表")
                         with gr.Column():
                             gr.Markdown("#### 代理设置")
-                            proxy_host = gr.Textbox(label="主机", placeholder="127.0.0.1")
+                            proxy_host = gr.Textbox(label="主机", value="127.0.0.1", interactive=True)
                             proxy_port = gr.Number(label="端口", value=1080, precision=0, interactive=True)
-                            proxy_type = gr.Dropdown(label="类型", choices=["http", "https", "socks"], value="http", interactive=True)
+                            proxy_type = gr.Dropdown(label="类型", choices=["http_proxy", "https_proxy", "socks_proxy", "no_proxy"], value="http_proxy", interactive=True)
                             with gr.Row():
                                 proxy_set_btn = gr.Button("✓ 设置代理")
                                 proxy_clear_btn = gr.Button("✗ 清除代理")
@@ -1982,17 +1983,15 @@ def create_ui():
             try:
                 result = network_agent.speed_test()
                 if result.get("status") == "success":
-                    data = reult.get("data", {})
+                    data = result.get("data", {})
                     download = data.get("download_mbps", 0)
                     upload = data.get("upload_mbps", 0)
                     ping = data.get("ping_ms", 0)
-                    return f"""### 🚀 测速结果
-
-- **下载速度**: {download:.2f} Mbps
-- **上传速度**: {upload:.2f} Mbps  
-- **延迟**: {ping:.2f} ms
-
-{result.get('msg', '')}"""
+                    return f"""### 🚀 测速结果 \
+                    - **下载速度**: {download:.2f} Mbps \
+                    - **上传速度**: {upload:.2f} Mbps \
+                    - **延迟**: {ping:.2f} ms
+                    {result.get('msg', '')}"""
                 else:
                     return f"✗ {result.get('msg', '测速失败')}"
             except Exception as e:
@@ -2002,18 +2001,24 @@ def create_ui():
         
         # 代理设置
         def set_proxy(proxy_host, proxy_port, proxy_type):
-            proxy_addr = f"{proxy_type}://{proxy_host}:{proxy_port}"
-            add_log(f"设置代理:{proxy_addr}", "info")
             try:
-                if proxy_type == "http":
-                    network_agent.set_proxy(http_proxy=proxy_addr)
-                elif proxy_type == "https":
-                    network_agent.set_proxy(https_proxy=proxy_addr)
-                elif proxy_type == "socks":
-                    network_agent.set_proxy(socks_proxy=proxy_addr)
-                else:
-                    network_agent.set_proxy(no_proxy=proxy_addr)
-                return f"✓ 成功设置代理: {proxy_addr}"
+                ipaddress.IPv4Address(proxy_host)
+                proxy_addr = f"{proxy_type}://{proxy_host}:{proxy_port}"
+                add_log(f"设置代理:{proxy_addr}", "info")
+                try:
+                    if proxy_type == "http":
+                        network_agent.set_proxy(http_proxy=proxy_addr)
+                    elif proxy_type == "https":
+                        network_agent.set_proxy(https_proxy=proxy_addr)
+                    elif proxy_type == "socks":
+                        network_agent.set_proxy(socks_proxy=proxy_addr)
+                    else:
+                        network_agent.set_proxy(no_proxy=proxy_addr)
+                    return f"✓ 成功设置代理: {proxy_addr}"
+                except Exception as e:
+                    return f"✗ 错误: {e}"
+            except ipaddress.AddressValueError:
+                return "✗ 主机地址必须是有效的 IPv4！"
             except Exception as e:
                 return f"✗ 错误: {e}"
 

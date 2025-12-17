@@ -40,7 +40,24 @@ UITARS_API_BASE = os.getenv("UITARS_API_BASE", None)
 VLLM_API_BASE = os.getenv("VLLM_API_BASE", "http://localhost:8000")
 # 优先使用外部UITARS API，如果未设置则使用本地vLLM
 API_BASE = UITARS_API_BASE if UITARS_API_BASE else VLLM_API_BASE
-MODEL_NAME = os.getenv("VLLM_MODEL_NAME", "/data1/models/UI-TARS-1.5-7B")
+
+# API Key 配置（支持多个环境变量名）
+API_KEY = (
+    os.getenv("UITARS_API_KEY") or 
+    os.getenv("OPENAI_API_KEY") or 
+    os.getenv("API_KEY") or 
+    None
+)
+
+# 模型名称配置
+# 如果使用外部API，优先使用外部API的模型名称
+# 如果使用本地vLLM，使用本地模型路径
+if UITARS_API_BASE:
+    # 外部API：使用环境变量或默认模型名称（如 gpt-4o）
+    MODEL_NAME = os.getenv("UITARS_MODEL_NAME") or os.getenv("VLLM_MODEL_NAME", "gpt-4o")
+else:
+    # 本地vLLM：使用模型路径
+    MODEL_NAME = os.getenv("VLLM_MODEL_NAME", "/data1/models/UI-TARS-1.5-7B")
 
 # 导入模型适配器
 try:
@@ -371,10 +388,17 @@ def call_vllm_api(
     Returns:
         模型响应文本，失败返回None
     """
-    url = f"{API_BASE}/v1/chat/completions"
+    # 构建 API URL，避免重复 /v1
+    api_base = API_BASE.rstrip('/')
+    if api_base.endswith('/v1'):
+        url = f"{api_base}/chat/completions"
+    else:
+        url = f"{api_base}/v1/chat/completions"
     
-    # 使用模型适配器（如果可用）
-    if HAS_MODEL_ADAPTER and not model_name:
+    # 使用模型适配器（如果可用且使用本地vLLM）
+    # 注意：外部API不使用模型适配器，直接使用MODEL_NAME
+    if HAS_MODEL_ADAPTER and not model_name and not UITARS_API_BASE:
+        # 只在使用本地vLLM时使用模型适配器
         adapter = get_model_adapter(api_base=API_BASE)
         # 自动切换模型
         current_model = adapter.auto_switch_model()
@@ -384,6 +408,7 @@ def call_vllm_api(
         else:
             model_path = MODEL_NAME
     else:
+        # 外部API或指定模型名称时，直接使用MODEL_NAME或指定的model_name
         model_path = model_name or MODEL_NAME
     
     payload = {
@@ -393,8 +418,13 @@ def call_vllm_api(
         "temperature": temperature,
     }
     
+    # 添加认证头（如果需要 API Key）
+    headers = {}
+    if API_KEY:
+        headers["Authorization"] = f"Bearer {API_KEY}"
+    
     try:
-        response = requests.post(url, json=payload, timeout=timeout)
+        response = requests.post(url, json=payload, headers=headers, timeout=timeout)
         response.raise_for_status()
         result = response.json()
         return result['choices'][0]['message']['content']
@@ -801,7 +831,10 @@ def test_api_health():
     print("="*60)
     
     try:
-        response = requests.get(f"{API_BASE}/health", timeout=10)
+        # 构建健康检查 URL，避免重复路径
+        api_base = API_BASE.rstrip('/')
+        health_url = f"{api_base}/health"
+        response = requests.get(health_url, timeout=10)
         if response.status_code == 200:
             print("✓ API服务正常")
             return True

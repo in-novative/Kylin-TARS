@@ -15,6 +15,13 @@
 #   - MonitorAgent: 系统监控
 #   - MediaAgent: 媒体控制
 
+# 使用外部大模型 API
+export UITARS_API_BASE="https://xiaoai.plus/v1"
+export VLLM_MODEL_NAME="gpt-4o"
+
+# 如果需要 API Key
+export OPENAI_API_KEY="sk-lgW2a38mNKdL3lAfKnjQ55yl3NujlfAwlg7u6GqjOfJXyOKU"
+
 # 不使用 set -e，以便捕获和处理错误
 set +e
 
@@ -75,9 +82,29 @@ echo -e "${PURPLE}╚═══════════════════�
 echo ""
 
 # 静默环境检查（只在失败时输出）
-# 检查图形界面环境
+# 检查图形界面环境（GUI环境，不是虚拟环境）
+# 注意：这是检查图形界面（DISPLAY/WAYLAND），不是检查Python虚拟环境（venv）
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
-    echo -e "${YELLOW}[警告] 未检测到图形界面环境，某些功能可能不可用${NC}" | tee -a "$STARTUP_LOG"
+    # 尝试设置默认 DISPLAY（如果可能）
+    if [ -S /tmp/.X11-unix/X0 ] 2>/dev/null; then
+        export DISPLAY=:0
+        echo -e "${GREEN}[信息] 自动设置 DISPLAY=:0${NC}" | tee -a "$STARTUP_LOG"
+    elif command -v loginctl >/dev/null 2>&1; then
+        # 尝试从 systemd 获取活动的图形会话
+        ACTIVE_SESSION=$(loginctl list-sessions --no-legend 2>/dev/null | grep -E 'seat0|graphical' | head -1 | awk '{print $1}')
+        if [ -n "$ACTIVE_SESSION" ]; then
+            export DISPLAY=$(loginctl show-session "$ACTIVE_SESSION" -p Display 2>/dev/null | cut -d= -f2)
+            if [ -n "$DISPLAY" ]; then
+                echo -e "${GREEN}[信息] 从 systemd 会话获取 DISPLAY=$DISPLAY${NC}" | tee -a "$STARTUP_LOG"
+            fi
+        fi
+    fi
+    
+    # 如果仍然没有设置，显示警告
+    if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
+        echo -e "${YELLOW}[警告] 未检测到图形界面环境（DISPLAY/WAYLAND），某些GUI功能可能不可用${NC}" | tee -a "$STARTUP_LOG"
+        echo -e "${YELLOW}      注意：这是检查图形界面环境，不是检查Python虚拟环境${NC}" | tee -a "$STARTUP_LOG"
+    fi
 fi
 
 # 检查 Python
@@ -138,11 +165,30 @@ fi
 export VLLM_API_BASE="${VLLM_API_BASE:-http://localhost:8000}"
 export UITARS_API_BASE="${UITARS_API_BASE:-${VLLM_API_BASE}}"
 
+# API Key 配置（支持多个环境变量名）
+export UITARS_API_KEY="${UITARS_API_KEY:-${OPENAI_API_KEY:-${API_KEY:-}}}"
+
+# 模型名称配置（外部API使用模型名称，本地vLLM使用模型路径）
+if [ -n "$UITARS_API_BASE" ] && [ "$UITARS_API_BASE" != "http://localhost:8000" ]; then
+    # 外部API：使用模型名称
+    export UITARS_MODEL_NAME="${UITARS_MODEL_NAME:-${VLLM_MODEL_NAME:-gpt-4o}}"
+else
+    # 本地vLLM：使用模型路径
+    export VLLM_MODEL_NAME="${VLLM_MODEL_NAME:-/data1/models/UI-TARS-1.5-7B}"
+fi
+
 # 检查UITARS_API_BASE是否配置（记忆模块需要）
 if [ -z "$UITARS_API_BASE" ] || [ "$UITARS_API_BASE" = "http://localhost:8000" ]; then
     echo -e "${YELLOW}[警告] UITARS_API_BASE 未正确配置，记忆模块将无法使用${NC}" | tee -a "$STARTUP_LOG"
     echo -e "${YELLOW}请设置环境变量: export UITARS_API_BASE=\"http://YOUR_SERVER_IP:8000\"${NC}" | tee -a "$STARTUP_LOG"
     echo -e "${YELLOW}或创建配置文件: ~/.config/kylin-gui-agent/api_config.sh${NC}" | tee -a "$STARTUP_LOG"
+    echo ""
+fi
+
+# 检查API Key是否配置（外部API需要）
+if [ -n "$UITARS_API_BASE" ] && [ "$UITARS_API_BASE" != "http://localhost:8000" ] && [ -z "$UITARS_API_KEY" ]; then
+    echo -e "${YELLOW}[警告] UITARS_API_KEY 未配置，外部API调用可能失败（401错误）${NC}" | tee -a "$STARTUP_LOG"
+    echo -e "${YELLOW}请设置环境变量: export UITARS_API_KEY=\"your-api-key\"${NC}" | tee -a "$STARTUP_LOG"
     echo ""
 fi
 
@@ -230,6 +276,9 @@ dbus-run-session -- /bin/bash -c "
     export LD_LIBRARY_PATH='$LD_LIBRARY_PATH'
     export UITARS_API_BASE='$UITARS_API_BASE'
     export VLLM_API_BASE='$VLLM_API_BASE'
+    export UITARS_API_KEY='$UITARS_API_KEY'
+    export UITARS_MODEL_NAME='$UITARS_MODEL_NAME'
+    export VLLM_MODEL_NAME='$VLLM_MODEL_NAME'
     export DISPLAY='${DISPLAY:-}'
     export WAYLAND_DISPLAY='${WAYLAND_DISPLAY:-}'
     export DBUS_SYSTEM_BUS_ADDRESS='unix:path=/var/run/dbus/system_bus_socket'
