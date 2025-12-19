@@ -25,31 +25,93 @@ class MediaAgentLogic:
     def __init__(self):
         self.screenshot_dir = os.path.expanduser("~/.config/kylin-gui-agent/screenshots")
         os.makedirs(self.screenshot_dir, exist_ok=True)
-        self.media_player = "totem"  # 麒麟系统默认媒体播放器
+        # 检测可用的媒体播放器
+        self.media_player = self._detect_media_player()
+        self.current_player_process = None  # 当前播放器进程
+        self.current_player_service = None  # 当前播放器D-Bus服务名
+    
+    def _detect_media_player(self) -> str:
+        """检测可用的媒体播放器"""
+        # 按优先级检测播放器
+        players = ["totem", "vlc", "mpv", "smplayer", "mplayer"]
+        for player in players:
+            if shutil.which(player):
+                return player
+        return "totem"  # 默认
+    
+    def _detect_running_player(self) -> Optional[str]:
+        """检测当前运行的媒体播放器"""
+        try:
+            import psutil
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    proc_name = proc.info['name'].lower()
+                    if any(player in proc_name for player in ['totem', 'vlc', 'mpv', 'smplayer', 'mplayer']):
+                        return proc_name
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except:
+            pass
+        return None
     
     def capture_screenshot(self, prefix: str = "media") -> Optional[str]:
         """截取屏幕"""
         timestamp = int(time.time())
         screenshot_path = os.path.join(self.screenshot_dir, f"{prefix}_{timestamp}.png")
+        
+        env = os.environ.copy()
+        if not env.get("DISPLAY"):
+            if os.path.exists("/tmp/.X11-unix/X0"):
+                env["DISPLAY"] = ":0"
+            elif os.path.exists("/tmp/.X11-unix/X1"):
+                env["DISPLAY"] = ":1"
 
         try:
-            # 使用 grim 截图（适用于 Wayland 环境）
-            if shutil.which("grim"):
-                subprocess.run(["grim", screenshot_path], check=True, capture_output=True)
-                return screenshot_path
-            # 检查 gnome-screenshot 是否可用
-            elif shutil.which("gnome-screenshot"):
-                subprocess.run(["gnome-screenshot", "-f", screenshot_path], check=True, capture_output=True)
-                return screenshot_path
-            else:
-                print("未找到可用的截图工具（grim 或 gnome-screenshot）")
-                return None
-        except subprocess.CalledProcessError as e:
-            print(f"截图失败：{e}")
-            return None
-        except Exception as e:
-            print(f"未知错误：{e}")
-            return None
+            # 方法1: 使用 scrot（优先）
+            if shutil.which("scrot"):
+                subprocess.run(
+                    ["scrot", "-z", "-d", "1", screenshot_path],
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                    env=env
+                )
+                if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
+                    return screenshot_path
+        except:
+            pass
+        
+        try:
+            # 方法2: 使用 gnome-screenshot
+            if shutil.which("gnome-screenshot"):
+                subprocess.run(
+                    ["gnome-screenshot", "-f", screenshot_path, "--delay=1"],
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                    env=env
+                )
+                if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
+                    return screenshot_path
+        except:
+            pass
+        
+        try:
+            # 方法3: 使用 import (ImageMagick)
+            if shutil.which("import"):
+                subprocess.run(
+                    ["import", "-display", env.get("DISPLAY", ":0"), "-window", "root", screenshot_path],
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                    env=env
+                )
+                if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
+                    return screenshot_path
+        except:
+            pass
+        
+        return None
     
     def make_response(self, status: str, msg: str, data: Dict = None, screenshot: str = None) -> Dict:
         """生成标准响应"""
@@ -79,53 +141,53 @@ class MediaAgentLogic:
             if not os.access(media_path, os.R_OK):
                 return self.make_response("error", f"无权限读取文件: {media_path}")
             
-            # 使用totem播放器播放
-            # 方法1: 使用gio launch（推荐）
+            # 播放媒体文件
+            # 方法1: 使用gio launch（推荐，会自动选择默认播放器）
+            player_process = None
+            actual_player = None
+            
             try:
-                subprocess.Popen(
+                player_process = subprocess.Popen(
                     ["gio", "open", media_path],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True
                 )
-                time.sleep(2)  # 等待播放器启动
+                self.current_player_process = player_process
+                time.sleep(3)  # 等待播放器启动
                 
-                screenshot = self.capture_screenshot("media_playing")
+                # 检测实际启动的播放器
+                actual_player = self._detect_running_player() or "默认播放器"
                 
-                return self.make_response(
-                    "success",
-                    f"媒体文件已开始播放: {os.path.basename(media_path)}",
-                    {
-                        "media_path": media_path,
-                        "media_name": os.path.basename(media_path),
-                        "player": self.media_player,
-                        "playing": True
-                    },
-                    screenshot
-                )
             except FileNotFoundError:
-                # 方法2: 直接使用totem命令
-                subprocess.Popen(
+                # 方法2: 直接使用检测到的播放器命令
+                if not shutil.which(self.media_player):
+                    return self.make_response("error", f"未找到媒体播放器: {self.media_player}")
+                
+                player_process = subprocess.Popen(
                     [self.media_player, media_path],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True
                 )
-                time.sleep(2)
-                
-                screenshot = self.capture_screenshot("media_playing")
-                
-                return self.make_response(
-                    "success",
-                    f"媒体文件已开始播放: {os.path.basename(media_path)}",
-                    {
-                        "media_path": media_path,
-                        "media_name": os.path.basename(media_path),
-                        "player": self.media_player,
-                        "playing": True
-                    },
-                    screenshot
-                )
+                self.current_player_process = player_process
+                actual_player = self.media_player
+                time.sleep(3)
+            
+            screenshot = self.capture_screenshot("media_playing")
+            
+            return self.make_response(
+                "success",
+                f"媒体文件已开始播放: {os.path.basename(media_path)}（播放器: {actual_player}）",
+                {
+                    "media_path": media_path,
+                    "media_name": os.path.basename(media_path),
+                    "player": actual_player,
+                    "player_pid": player_process.pid if player_process else None,
+                    "playing": True
+                },
+                screenshot
+            )
                 
         except Exception as e:
             return self.make_response("error", f"播放媒体失败: {e}")
@@ -140,16 +202,91 @@ class MediaAgentLogic:
             action: 操作类型（play/pause/stop/fullscreen/next/previous）
         """
         try:
-            # 使用DBus控制totem播放器
+            # 检测当前运行的播放器
+            running_player = self._detect_running_player()
+            if not running_player:
+                # 检查进程是否还在运行
+                if self.current_player_process:
+                    try:
+                        if self.current_player_process.poll() is None:
+                            # 进程还在运行，但检测不到播放器名称，使用快捷键方式
+                            return self._control_via_hotkey(action)
+                    except:
+                        pass
+                return self.make_response("error", "媒体播放器未运行，请先播放媒体文件")
+            
+            # 根据播放器选择控制方式
             bus = dbus.SessionBus()
             
-            # totem的DBus接口
-            totem_service = "org.gnome.Totem"
-            totem_path = "/org/gnome/Totem"
-            totem_interface = "org.gnome.Totem"
+            # 尝试不同的D-Bus服务
+            dbus_services = [
+                ("org.gnome.Totem", "/org/gnome/Totem", "org.gnome.Totem"),
+                ("org.mpris.MediaPlayer2.totem", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player"),
+                ("org.mpris.MediaPlayer2.vlc", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player"),
+                ("org.mpris.MediaPlayer2.mpv", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player"),
+            ]
             
-            if not bus.name_has_owner(totem_service):
-                return self.make_response("error", "媒体播放器未运行，请先播放媒体文件")
+            dbus_success = False
+            for service, path, interface in dbus_services:
+                try:
+                    if bus.name_has_owner(service):
+                        dbus_success = True
+                        totem_proxy = bus.get_object(service, path)
+                        totem_interface_obj = dbus.Interface(totem_proxy, interface)
+                        
+                        action_map = {
+                            "play": "Play",
+                            "pause": "Pause",
+                            "stop": "Stop",
+                            "next": "Next",
+                            "previous": "Previous",
+                        }
+                        
+                        if action == "fullscreen":
+                            # 全屏操作
+                            if hasattr(totem_interface_obj, "set_fullscreen"):
+                                totem_interface_obj.set_fullscreen(True)
+                            else:
+                                # MPRIS接口使用Fullscreen属性
+                                props = dbus.Interface(totem_proxy, "org.freedesktop.DBus.Properties")
+                                props.Set(interface, "Fullscreen", dbus.Boolean(True))
+                            control_action = "fullscreen"
+                        elif action in action_map:
+                            # 其他控制操作
+                            method_name = action_map[action]
+                            if hasattr(totem_interface_obj, method_name):
+                                getattr(totem_interface_obj, method_name)()
+                            else:
+                                # MPRIS接口使用PlayPause等方法
+                                if action == "play":
+                                    totem_interface_obj.Play()
+                                elif action == "pause":
+                                    totem_interface_obj.Pause()
+                                elif action == "stop":
+                                    totem_interface_obj.Stop()
+                            control_action = action
+                        else:
+                            return self.make_response("error", f"不支持的操作: {action}")
+                        
+                        time.sleep(0.5)
+                        screenshot = self.capture_screenshot(f"media_{control_action}")
+                        
+                        return self.make_response(
+                            "success",
+                            f"媒体控制成功: {action}",
+                            {
+                                "action": control_action,
+                                "player": running_player,
+                                "status": "success"
+                            },
+                            screenshot
+                        )
+                except dbus.exceptions.DBusException:
+                    continue
+            
+            # 如果D-Bus都失败，使用键盘快捷键
+            if not dbus_success:
+                return self._control_via_hotkey(action)
             
             try:
                 totem_proxy = bus.get_object(totem_service, totem_path)

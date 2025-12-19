@@ -1,0 +1,64 @@
+2025-12-18 20:52:12,676 - MCP Server - INFO - MCP Server initialized and registered on DBus
+2025-12-18 20:52:12,677 - MCP Server - INFO - Tool added: echo
+2025-12-18 20:52:12,678 - MCP Server - INFO - Heartbeat monitor started (3s interval)
+2025-12-18 20:52:12,678 - MCP Server - INFO - ============================================================
+2025-12-18 20:52:12,678 - MCP Server - INFO - MCP Server started successfully
+2025-12-18 20:52:12,678 - MCP Server - INFO - ============================================================
+2025-12-18 20:52:12,678 - MCP Server - INFO - Service name: com.kylin.mcp.MasterAgent
+2025-12-18 20:52:12,678 - MCP Server - INFO - Object path: /com/kylin/mcp/MasterAgent
+2025-12-18 20:52:12,678 - MCP Server - INFO - Interface name: com.kylin.mcp.MasterAgent
+2025-12-18 20:52:12,678 - MCP Server - INFO - 
+2025-12-18 20:52:12,678 - MCP Server - INFO - 等待子智能体注册...
+2025-12-18 20:52:12,678 - MCP Server - INFO - ============================================================
+2025-12-18 20:52:15,666 - file_agent - INFO - 启动FileAgent MCP服务
+2025-12-18 20:52:15,669 - MCP Server - INFO - Child agent registered: file_agent (instance: file_agent_1766062335)
+2025-12-18 20:52:15,669 - MCP Server - INFO -   Tools: ['file_agent.search_file', 'file_agent.move_to_trash', 'file_agent.batch_rename']
+2025-12-18 20:52:15,670 - file_agent - INFO - FileAgent已成功注册到MCP Server
+2025-12-18 20:52:16,687 - setting_agent - INFO - 启动SettingsAgent MCP服务
+2025-12-18 20:52:16,690 - MCP Server - INFO - Child agent registered: settings_agent (instance: settings_agent_1766062336)
+2025-12-18 20:52:16,690 - MCP Server - INFO -   Tools: ['settings_agent.change_wallpaper', 'settings_agent.adjust_volume', 'settings_agent.bluetooth_manage']
+2025-12-18 20:52:16,692 - setting_agent - INFO - SettingsAgent已成功注册到MCP Server
+2025-12-18 20:52:17,682 - network_agent - INFO - 启动 NetworkAgent MCP 服务
+2025-12-18 20:52:17,687 - MCP Server - INFO - Child agent registered: network_agent (instance: network_agent_1766062337)
+2025-12-18 20:52:17,688 - MCP Server - INFO -   Tools: ['network_agent.list_wifi', 'network_agent.connect_wifi', 'network_agent.disconnect_wifi', 'network_agent.get_wifi_status', 'network_agent.set_proxy', 'network_agent.clear_proxy', 'network_agent.get_proxy_status', 'network_agent.speed_test', 'network_agent.get_network_status']
+2025-12-18 20:52:17,688 - network_agent - INFO - NetworkAgent 已成功注册到 MCP Server
+2025-12-18 20:52:17,688 - network_agent - INFO - 工具: ['network_agent.list_wifi', 'network_agent.connect_wifi', 'network_agent.disconnect_wifi', 'network_agent.get_wifi_status', 'network_agent.set_proxy', 'network_agent.clear_proxy', 'network_agent.get_proxy_status', 'network_agent.speed_test', 'network_agent.get_network_status']
+2025-12-18 20:52:17,688 - network_agent - INFO - NetworkAgent 服务已启动，等待调用...
+2025-12-18 20:52:18,684 - app_agent - INFO - 启动 AppAgent MCP 服务
+2025-12-18 20:52:18,687 - MCP Server - INFO - Child agent registered: app_agent (instance: app_agent_1766062338)
+2025-12-18 20:52:18,688 - MCP Server - INFO -   Tools: ['app_agent.find_app', 'app_agent.launch_app', 'app_agent.close_app', 'app_agent.list_running_apps', 'app_agent.is_app_running', 'app_agent.app_quick_operation']
+2025-12-18 20:52:18,688 - app_agent - INFO - AppAgent 已成功注册到 MCP Server
+2025-12-18 20:52:18,688 - app_agent - INFO - 工具: ['app_agent.find_app', 'app_agent.launch_app', 'app_agent.close_app', 'app_agent.list_running_apps', 'app_agent.is_app_running', 'app_agent.app_quick_operation']
+2025-12-18 20:52:18,688 - app_agent - INFO - AppAgent 服务已启动，等待调用...
+2025-12-18 20:52:19,681 - monitor_agent - INFO -  启动 MonitorAgent MCP 服务
+2025-12-18 20:52:19,683 - MCP Server - INFO - Child agent registered: monitor_agent (instance: monitor_agent_1766062339)
+2025-12-18 20:52:19,683 - MCP Server - INFO -   Tools: ['monitor_agent.get_system_status', 'monitor_agent.clean_background_process', 'monitor_agent.monitor_agent_status']
+2025-12-18 20:52:19,684 - monitor_agent - INFO - MonitorAgent 已成功注册到 MCP Server
+2025-12-18 20:52:19,684 - monitor_agent - INFO -  MonitorAgent 服务已启动，等待调用...
+2025-12-18 20:52:20,684 - media_agent - INFO - 启动 MediaAgent MCP 服务
+2025-12-18 20:52:20,686 - MCP Server - INFO - Child agent registered: media_agent (instance: media_agent_1766062340)
+2025-12-18 20:52:20,687 - MCP Server - INFO -   Tools: ['media_agent.play_media', 'media_agent.media_control', 'media_agent.capture_media_frame']
+2025-12-18 20:52:20,687 - media_agent - INFO - MediaAgent 已成功注册到 MCP Server
+2025-12-18 20:52:20,687 - media_agent - INFO - MediaAgent 服务已启动，等待调用...
+findfont: Font family ['Source Han Sans CN'] not found. Falling back to DejaVu Sans.
+findfont: Font family ['Noto Sans CJK SC'] not found. Falling back to DejaVu Sans.
+findfont: Font family ['Microsoft YaHei'] not found. Falling back to DejaVu Sans.
+findfont: Font family ['SimHei'] not found. Falling back to DejaVu Sans.
+2025-12-18 20:52:42,678 - MCP Server - INFO - 📡 广播状态: file_agent (file_agent_1766062335) -> busy
+2025-12-18 20:52:42,682 - MCP Server - INFO - 📡 广播状态: settings_agent (settings_agent_1766062336) -> busy
+2025-12-18 20:52:42,684 - MCP Server - INFO - 📡 广播状态: network_agent (network_agent_1766062337) -> busy
+2025-12-18 20:52:42,687 - MCP Server - INFO - 📡 广播状态: app_agent (app_agent_1766062338) -> busy
+2025-12-18 20:52:42,689 - MCP Server - INFO - 📡 广播状态: monitor_agent (monitor_agent_1766062339) -> busy
+2025-12-18 20:52:42,692 - MCP Server - INFO - 📡 广播状态: media_agent (media_agent_1766062340) -> busy
+2025-12-18 20:53:42,695 - MCP Server - INFO - 📡 广播状态: file_agent (file_agent_1766062335) -> offline
+2025-12-18 20:53:42,698 - MCP Server - INFO - 📡 广播状态: settings_agent (settings_agent_1766062336) -> offline
+2025-12-18 20:53:42,701 - MCP Server - INFO - 📡 广播状态: network_agent (network_agent_1766062337) -> offline
+2025-12-18 20:53:42,703 - MCP Server - INFO - 📡 广播状态: app_agent (app_agent_1766062338) -> offline
+2025-12-18 20:53:42,705 - MCP Server - INFO - 📡 广播状态: monitor_agent (monitor_agent_1766062339) -> offline
+2025-12-18 20:53:42,708 - MCP Server - INFO - 📡 广播状态: media_agent (media_agent_1766062340) -> offline
+[0;36m[INFO][0m 正在清理进程...
+[0;32m[SUCCESS][0m 清理完成
+[0;31m[ERROR][0m 脚本在第 277 行发生错误，退出码: 130
+[0;31m[ERROR][0m 请查看日志文件: /data/usershare/Kylin-TARS/logs/startup_20251218_205208.log
+[0;36m[INFO][0m 正在清理进程...
+[0;32m[SUCCESS][0m 清理完成

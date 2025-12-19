@@ -23,8 +23,13 @@ from typing import Optional, Dict, List, Any
 # 存储配置
 # ============================================================
 
-# 存储目录（使用用户配置目录，避免权限问题）
-STORAGE_DIR = os.path.expanduser("~/.config/kylin-gui-agent/collaboration_memory")
+# 获取项目根目录（memory目录的父目录）
+# memory_store.py 位于 memory/ 目录下，父目录就是项目根目录
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 存储目录（使用项目目录下的memory/collaboration_memory）
+STORAGE_DIR = os.path.join(PROJECT_ROOT, "memory", "collaboration_memory")
+# 用户偏好文件仍保存在用户配置目录（避免项目迁移时丢失）
 PREFERENCE_FILE = os.path.expanduser("~/.config/kylin-gui-agent/user_preference.json")
 
 # 确保存储目录存在

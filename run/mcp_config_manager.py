@@ -66,21 +66,59 @@ class MCPConfigManager:
                 pass
         return {}
     
-    def save_config(self):
-        """保存配置"""
-        # 自动备份
-        if self.config.get("settings", {}).get("auto_backup", True):
-            self.backup_config()
+    def save_config(self, auto_backup: bool = True):
+        """
+        保存配置
         
+        Args:
+            auto_backup: 是否自动备份（默认True，但内部调用时可设为False避免递归）
+        """
+        # 确保配置目录存在
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        
+        # 写入配置文件
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
+        
+        # 自动备份（仅在外部调用时执行，避免递归）
+        if auto_backup and self.config.get("settings", {}).get("auto_backup", True):
+            try:
+                self.backup_config()
+            except Exception as e:
+                # 备份失败不影响保存操作
+                print(f"自动备份失败（不影响保存）: {e}")
     
     def backup_config(self) -> str:
         """备份配置"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file = os.path.join(BACKUP_DIR, f"mcp_config_{timestamp}.json")
         
-        shutil.copy2(CONFIG_FILE if os.path.exists(CONFIG_FILE) else "", backup_file)
+        # 确保备份目录存在
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        
+        # 确保配置文件存在（如果不存在，创建默认配置并直接写入，不调用save_config避免递归）
+        if not os.path.exists(CONFIG_FILE):
+            self._ensure_default_config()
+            # 直接写入配置文件，不调用save_config避免递归
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
+        
+        # 备份配置文件
+        if os.path.exists(CONFIG_FILE):
+            shutil.copy2(CONFIG_FILE, backup_file)
+        else:
+            # 如果配置文件仍然不存在，创建空配置并备份
+            default_config = {
+                "agents": {},
+                "permissions": {},
+                "settings": {
+                    "auto_backup": True,
+                    "backup_interval_hours": 24,
+                    "max_backups": 10
+                }
+            }
+            with open(backup_file, "w", encoding="utf-8") as f:
+                json.dump(default_config, f, ensure_ascii=False, indent=2)
         
         # 清理旧备份
         self._cleanup_old_backups()

@@ -83,3 +83,9 @@ AttributeError: Cannot call tick outside of a gradio.Blocks context.
 2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: app_agent (app_agent_1765977632) -> offline
 2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: monitor_agent (monitor_agent_1765977633) -> offline
 2025-12-17 21:21:55,984 - MCP Server - INFO - 📡 广播状态: media_agent (media_agent_1765977634) -> offline
+[0;36m[INFO][0m 正在清理进程...
+[0;32m[SUCCESS][0m 清理完成
+[0;31m[ERROR][0m 脚本在第 276 行发生错误，退出码: 130
+[0;31m[ERROR][0m 请查看日志文件: /data/usershare/Kylin-TARS/logs/startup_20251217_212022.log
+[0;36m[INFO][0m 正在清理进程...
+[0;32m[SUCCESS][0m 清理完成

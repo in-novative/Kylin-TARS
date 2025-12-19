@@ -197,7 +197,8 @@ if [ -n "$UITARS_API_BASE" ] && [ "$UITARS_API_BASE" != "http://localhost:8000" 
     echo ""
 fi
 
-export PYTHONPATH="$PROJECT_ROOT:$PROJECT_ROOT/mcp_system:$PROJECT_ROOT/desktop/agent_project:$PYTHONPATH"
+# 设置 PYTHONPATH，包含所有必要的模块目录
+export PYTHONPATH="$PROJECT_ROOT:$PROJECT_ROOT/mcp_system:$PROJECT_ROOT/desktop/agent_project:$PROJECT_ROOT/run:$PROJECT_ROOT/memory:$PROJECT_ROOT/log:$PYTHONPATH"
 
 # 设置Python环境变量，使虚拟环境能够访问系统包（特别是PyGObject）
 # 这对于openKylin系统很重要，因为PyGObject通过系统包python3-gi提供

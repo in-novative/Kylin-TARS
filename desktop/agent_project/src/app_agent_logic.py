@@ -13,7 +13,8 @@ AppAgent 核心逻辑 - 应用管理智能体
 
 import os
 import dbus
-import shlex, subprocess
+import shlex
+import subprocess
 import time
 import shutil
 import psutil
@@ -362,6 +363,29 @@ class AppAgentLogic:
             操作结果
         """
         try:
+            # 检测桌面环境并选择对应的应用
+            desktop_env = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
+            is_ukui = "UKUI" in desktop_env
+            
+            # 检测可用的终端和文件管理器
+            terminal_cmd = None
+            file_manager_cmd = None
+            
+            if is_ukui:
+                # UKUI环境优先使用peony和ukui-terminal
+                for cmd in ["ukui-terminal", "peony-terminal", "gnome-terminal", "xterm"]:
+                    if shutil.which(cmd):
+                        terminal_cmd = cmd
+                        break
+                for cmd in ["peony", "nautilus", "thunar", "pcmanfm"]:
+                    if shutil.which(cmd):
+                        file_manager_cmd = cmd
+                        break
+            else:
+                # GNOME环境
+                terminal_cmd = shutil.which("gnome-terminal") or shutil.which("xterm")
+                file_manager_cmd = shutil.which("nautilus") or shutil.which("thunar")
+            
             # 主流应用参数映射
             app_mappings = {
                 "firefox": {
@@ -385,14 +409,14 @@ class AppAgentLogic:
                     "description": "Wine运行Windows应用"
                 },
                 "终端": {
-                    "cmd": "gnome-terminal",
+                    "cmd": terminal_cmd or "xterm",
                     "url_prefix": False,
-                    "description": "GNOME终端"
+                    "description": f"终端（{terminal_cmd or 'xterm'}）"
                 },
                 "文件": {
-                    "cmd": "nautilus",
+                    "cmd": file_manager_cmd or "nautilus",
                     "url_prefix": False,
-                    "description": "文件管理器"
+                    "description": f"文件管理器（{file_manager_cmd or 'nautilus'}）"
                 },
                 "gedit": {
                     "cmd": "gedit",

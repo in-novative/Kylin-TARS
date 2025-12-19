@@ -1,0 +1,4 @@
+2025-12-18 00:37:01,770 - app_agent - INFO - 启动 AppAgent MCP 服务
+2025-12-18 00:37:01,772 - app_agent - INFO - AppAgent 已成功注册到 MCP Server
+2025-12-18 00:37:01,772 - app_agent - INFO - 工具: ['app_agent.find_app', 'app_agent.launch_app', 'app_agent.close_app', 'app_agent.list_running_apps', 'app_agent.is_app_running', 'app_agent.app_quick_operation']
+2025-12-18 00:37:01,773 - app_agent - INFO - AppAgent 服务已启动，等待调用...

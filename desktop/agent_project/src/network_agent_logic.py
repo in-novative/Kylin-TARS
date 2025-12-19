@@ -391,6 +391,7 @@ class NetworkAgentLogic:
         """解析speedtest-cli输出"""
         speed_data = {
             "ping": None,
+            "ping_ms": None,  # 兼容两种字段名
             "download_mbps": None,
             "upload_mbps": None,
             "server": None
@@ -401,18 +402,32 @@ class NetworkAgentLogic:
             for line in lines:
                 line_lower = line.lower()
                 if "ping:" in line_lower:
-                    ping_str = line.split(":")[1].strip().replace("ms", "").strip()
-                    speed_data["ping"] = float(ping_str)
+                    try:
+                        ping_str = line.split(":")[1].strip().replace("ms", "").strip()
+                        ping_value = float(ping_str)
+                        speed_data["ping"] = ping_value
+                        speed_data["ping_ms"] = ping_value  # 同时设置两个字段
+                    except (ValueError, IndexError):
+                        pass
                 elif "download:" in line_lower:
-                    download_str = line.split(":")[1].strip().replace("mbit/s", "").strip()
-                    speed_data["download_mbps"] = float(download_str)
+                    try:
+                        download_str = line.split(":")[1].strip().replace("mbit/s", "").replace("mbps", "").strip()
+                        speed_data["download_mbps"] = float(download_str)
+                    except (ValueError, IndexError):
+                        pass
                 elif "upload:" in line_lower:
-                    upload_str = line.split(":")[1].strip().replace("mbit/s", "").strip()
-                    speed_data["upload_mbps"] = float(upload_str)
+                    try:
+                        upload_str = line.split(":")[1].strip().replace("mbit/s", "").replace("mbps", "").strip()
+                        speed_data["upload_mbps"] = float(upload_str)
+                    except (ValueError, IndexError):
+                        pass
                 elif "hosted by" in line_lower or "server:" in line_lower:
-                    speed_data["server"] = line.split(":")[-1].strip() if ":" in line else line.strip()
-        except:
-            pass
+                    try:
+                        speed_data["server"] = line.split(":")[-1].strip() if ":" in line else line.strip()
+                    except:
+                        pass
+        except Exception as e:
+            print(f"解析speedtest输出失败: {e}")
         
         return speed_data
     
