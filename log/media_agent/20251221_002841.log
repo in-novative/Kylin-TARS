@@ -1,0 +1,3 @@
+2025-12-21 00:28:41,730 - media_agent - INFO - 启动 MediaAgent MCP 服务
+2025-12-21 00:28:41,731 - media_agent - INFO - MediaAgent 已成功注册到 MCP Server
+2025-12-21 00:28:41,731 - media_agent - INFO - MediaAgent 服务已启动，等待调用...

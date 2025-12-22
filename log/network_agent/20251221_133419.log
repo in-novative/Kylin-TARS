@@ -1,0 +1,4 @@
+2025-12-21 13:34:19,305 - network_agent - INFO - 启动 NetworkAgent MCP 服务
+2025-12-21 13:34:19,306 - network_agent - INFO - NetworkAgent 已成功注册到 MCP Server
+2025-12-21 13:34:19,306 - network_agent - INFO - 工具: ['network_agent.list_wifi', 'network_agent.connect_wifi', 'network_agent.disconnect_wifi', 'network_agent.get_wifi_status', 'network_agent.set_proxy', 'network_agent.clear_proxy', 'network_agent.get_proxy_status', 'network_agent.speed_test', 'network_agent.get_network_status']
+2025-12-21 13:34:19,306 - network_agent - INFO - NetworkAgent 服务已启动，等待调用...

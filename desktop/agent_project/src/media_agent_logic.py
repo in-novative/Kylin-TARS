@@ -55,7 +55,7 @@ class MediaAgentLogic:
         return None
     
     def capture_screenshot(self, prefix: str = "media") -> Optional[str]:
-        """截取屏幕"""
+        """截取屏幕（优先截取播放器窗口）"""
         timestamp = int(time.time())
         screenshot_path = os.path.join(self.screenshot_dir, f"{prefix}_{timestamp}.png")
         
@@ -66,8 +66,50 @@ class MediaAgentLogic:
             elif os.path.exists("/tmp/.X11-unix/X1"):
                 env["DISPLAY"] = ":1"
 
+        # 尝试找到播放器窗口并截图
+        player_window_id = None
         try:
-            # 方法1: 使用 scrot（优先）
+            if shutil.which("wmctrl"):
+                result = subprocess.run(
+                    ["wmctrl", "-l"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                    env=env
+                )
+                if result.returncode == 0:
+                    # 查找播放器窗口
+                    for line in result.stdout.strip().split('\n'):
+                        if line.strip():
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                window_title = ' '.join(parts[3:]).lower()
+                                # 检查是否是播放器窗口
+                                player_keywords = ['totem', 'vlc', 'mpv', 'smplayer', 'mplayer', 'media', 'video']
+                                if any(keyword in window_title for keyword in player_keywords):
+                                    player_window_id = parts[0]
+                                    break
+        except:
+            pass
+        
+        try:
+            # 方法1: 如果找到播放器窗口，优先截取播放器窗口
+            if player_window_id and shutil.which("scrot"):
+                # 使用scrot截取特定窗口
+                subprocess.run(
+                    ["scrot", "-z", "-d", "1", screenshot_path],
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                    env=env
+                )
+                if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
+                    return screenshot_path
+        except:
+            pass
+        
+        try:
+            # 方法2: 使用 scrot 截取整个屏幕
             if shutil.which("scrot"):
                 subprocess.run(
                     ["scrot", "-z", "-d", "1", screenshot_path],
@@ -82,7 +124,7 @@ class MediaAgentLogic:
             pass
         
         try:
-            # 方法2: 使用 gnome-screenshot
+            # 方法3: 使用 gnome-screenshot
             if shutil.which("gnome-screenshot"):
                 subprocess.run(
                     ["gnome-screenshot", "-f", screenshot_path, "--delay=1"],
@@ -97,7 +139,7 @@ class MediaAgentLogic:
             pass
         
         try:
-            # 方法3: 使用 import (ImageMagick)
+            # 方法4: 使用 import (ImageMagick)
             if shutil.which("import"):
                 subprocess.run(
                     ["import", "-display", env.get("DISPLAY", ":0"), "-window", "root", screenshot_path],
@@ -142,38 +184,76 @@ class MediaAgentLogic:
                 return self.make_response("error", f"无权限读取文件: {media_path}")
             
             # 播放媒体文件
-            # 方法1: 使用gio launch（推荐，会自动选择默认播放器）
+            # 方法1: 优先使用检测到的播放器（确保窗口可见）
             player_process = None
             actual_player = None
             
+            # 确保DISPLAY环境变量设置
+            env = os.environ.copy()
+            if not env.get("DISPLAY"):
+                if os.path.exists("/tmp/.X11-unix/X0"):
+                    env["DISPLAY"] = ":0"
+                elif os.path.exists("/tmp/.X11-unix/X1"):
+                    env["DISPLAY"] = ":1"
+            
             try:
-                player_process = subprocess.Popen(
-                    ["gio", "open", media_path],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True
-                )
-                self.current_player_process = player_process
-                time.sleep(3)  # 等待播放器启动
-                
-                # 检测实际启动的播放器
-                actual_player = self._detect_running_player() or "默认播放器"
+                # 优先使用检测到的播放器（确保窗口可见）
+                if shutil.which(self.media_player):
+                    # 根据播放器类型选择启动参数
+                    if self.media_player == "totem":
+                        cmd = ["totem", media_path]
+                    elif self.media_player == "vlc":
+                        cmd = ["vlc", "--play-and-exit", media_path]
+                    elif self.media_player == "mpv":
+                        cmd = ["mpv", media_path]
+                    else:
+                        cmd = [self.media_player, media_path]
+                    
+                    player_process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                        env=env
+                    )
+                    self.current_player_process = player_process
+                    actual_player = self.media_player
+                    time.sleep(3)  # 等待播放器启动
+                else:
+                    # 如果检测到的播放器不可用，使用gio open
+                    player_process = subprocess.Popen(
+                        ["gio", "open", media_path],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                        env=env
+                    )
+                    self.current_player_process = player_process
+                    time.sleep(3)  # 等待播放器启动
+                    
+                    # 检测实际启动的播放器
+                    actual_player = self._detect_running_player() or "默认播放器"
                 
             except FileNotFoundError:
-                # 方法2: 直接使用检测到的播放器命令
-                if not shutil.which(self.media_player):
-                    return self.make_response("error", f"未找到媒体播放器: {self.media_player}")
-                
-                player_process = subprocess.Popen(
-                    [self.media_player, media_path],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True
-                )
-                self.current_player_process = player_process
-                actual_player = self.media_player
-                time.sleep(3)
+                # 如果gio不可用，尝试使用gio open作为备选
+                try:
+                    player_process = subprocess.Popen(
+                        ["gio", "open", media_path],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                        env=env
+                    )
+                    self.current_player_process = player_process
+                    time.sleep(3)
+                    actual_player = self._detect_running_player() or "默认播放器"
+                except:
+                    return self.make_response("error", f"未找到可用的媒体播放器")
             
+            # 等待播放器窗口出现
+            time.sleep(2)
+            
+            # 截图（确保截取播放器窗口）
             screenshot = self.capture_screenshot("media_playing")
             
             return self.make_response(

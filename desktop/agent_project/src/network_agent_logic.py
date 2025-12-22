@@ -366,18 +366,35 @@ class NetworkAgentLogic:
             elapsed_time = time.time() - start_time
             
             if result.returncode != 0:
-                return self.make_response("error", f"测速失败: {result.stderr.strip()}")
+                # speedtest-cli失败，使用备选方案
+                print(f"[WARNING] speedtest-cli执行失败，使用备选方案: {result.stderr.strip()}")
+                return self._speed_test_fallback()
             
             # 解析结果
             speed_data = self._parse_speedtest_output(result.stdout, test_type)
+            
+            # 如果解析结果为空，使用备选方案
+            if not speed_data.get("ping_ms") and not speed_data.get("download_mbps"):
+                print("[WARNING] speedtest-cli输出解析失败，使用备选方案")
+                return self._speed_test_fallback()
+            
             speed_data["elapsed_time"] = round(elapsed_time, 2)
             speed_data["test_type"] = test_type
             
             screenshot = self.capture_screenshot("speed_test")
             
+            # 格式化结果消息
+            result_msg_parts = [f"测速完成（{test_type}模式，耗时{elapsed_time:.1f}秒）"]
+            if speed_data.get("ping_ms"):
+                result_msg_parts.append(f"延迟: {speed_data['ping_ms']:.2f}ms")
+            if speed_data.get("download_mbps"):
+                result_msg_parts.append(f"下载: {speed_data['download_mbps']:.2f}Mbps")
+            if speed_data.get("upload_mbps"):
+                result_msg_parts.append(f"上传: {speed_data['upload_mbps']:.2f}Mbps")
+            
             return self.make_response(
                 "success",
-                f"测速完成（{test_type}模式，耗时{elapsed_time:.1f}秒）",
+                " | ".join(result_msg_parts),
                 speed_data,
                 screenshot
             )
@@ -435,22 +452,39 @@ class NetworkAgentLogic:
         """备选测速方案（使用ping和wget）"""
         try:
             # Ping测试延迟
-            ping_result = subprocess.run(
-                ["ping", "-c", "4", "8.8.8.8"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
             ping_ms = None
-            if ping_result.returncode == 0:
-                # 解析ping结果
-                for line in ping_result.stdout.split("\n"):
-                    if "min/avg/max" in line:
-                        parts = line.split("=")[1].strip().split("/")
-                        if len(parts) >= 2:
-                            ping_ms = float(parts[1])
-                            break
+            try:
+                ping_result = subprocess.run(
+                    ["ping", "-c", "4", "8.8.8.8"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if ping_result.returncode == 0:
+                    # 解析ping结果（多种格式兼容）
+                    for line in ping_result.stdout.split("\n"):
+                        if "min/avg/max" in line or "avg" in line.lower():
+                            # 格式1: min/avg/max = 1.234/5.678/9.012
+                            if "=" in line:
+                                parts = line.split("=")[1].strip().split("/")
+                                if len(parts) >= 2:
+                                    try:
+                                        ping_ms = float(parts[1])
+                                        break
+                                    except ValueError:
+                                        pass
+                            # 格式2: 直接查找数字
+                            import re
+                            numbers = re.findall(r'\d+\.?\d*', line)
+                            if len(numbers) >= 2:
+                                try:
+                                    ping_ms = float(numbers[1])  # 通常第二个是平均值
+                                    break
+                                except ValueError:
+                                    pass
+            except Exception as e:
+                print(f"Ping测试失败: {e}")
             
             # 下载速度测试（使用wget下载小文件）
             download_mbps = None
@@ -458,29 +492,38 @@ class NetworkAgentLogic:
                 test_url = "http://speedtest.tele2.net/10MB.zip"
                 start_time = time.time()
                 wget_result = subprocess.run(
-                    ["wget", "-O", "/dev/null", test_url],
+                    ["wget", "-O", "/dev/null", "--progress=bar:force", test_url],
                     capture_output=True,
+                    text=True,
                     timeout=30
                 )
                 elapsed = time.time() - start_time
                 
                 if wget_result.returncode == 0 and elapsed > 0:
-                    # 10MB = 80Mbit
+                    # 10MB = 80Mbit (10MB * 8 bits/byte = 80 Mbit)
                     download_mbps = round(80 / elapsed, 2)
-            except:
-                pass
+            except Exception as e:
+                print(f"下载速度测试失败: {e}")
             
             screenshot = self.capture_screenshot("speed_test_fallback")
             
+            # 格式化结果消息
+            result_msg = "测速完成（备选方案）"
+            if ping_ms is not None and download_mbps is not None:
+                result_msg = f"测速完成（备选方案）- 延迟: {ping_ms:.2f}ms, 下载: {download_mbps:.2f}Mbps"
+            elif ping_ms is not None:
+                result_msg = f"测速完成（备选方案）- 延迟: {ping_ms:.2f}ms"
+            
             return self.make_response(
                 "success",
-                "测速完成（备选方案）",
+                result_msg,
                 {
                     "ping_ms": ping_ms,
+                    "ping": ping_ms,  # 兼容字段
                     "download_mbps": download_mbps,
                     "upload_mbps": None,
                     "test_type": "fallback",
-                    "note": "speedtest-cli未安装，使用备选方案"
+                    "note": "speedtest-cli未安装，使用备选方案（ping + wget）"
                 },
                 screenshot
             )

@@ -361,6 +361,8 @@ dbus-run-session -- /bin/bash -c "
     echo -e '${PURPLE}╚══════════════════════════════════════════════════════════════╝${NC}'
     echo ''
     
+    # 切换到gradio_upgrade.py所在目录
+    cd '$PROJECT_ROOT/desktop/agent_project/src'
     '$PYTHON_EXEC' gradio_upgrade.py
     
     /bin/kill \$MCP_PID 2>/dev/null || true

@@ -1,0 +1,50 @@
+2025-12-21 20:32:55,673 - MCP Server - INFO - MCP Server initialized and registered on DBus
+2025-12-21 20:32:55,673 - MCP Server - INFO - Tool added: echo
+2025-12-21 20:32:55,674 - MCP Server - INFO - Heartbeat monitor started (3s interval)
+2025-12-21 20:32:55,674 - MCP Server - INFO - ============================================================
+2025-12-21 20:32:55,674 - MCP Server - INFO - MCP Server started successfully
+2025-12-21 20:32:55,674 - MCP Server - INFO - ============================================================
+2025-12-21 20:32:55,674 - MCP Server - INFO - Service name: com.kylin.mcp.MasterAgent
+2025-12-21 20:32:55,674 - MCP Server - INFO - Object path: /com/kylin/mcp/MasterAgent
+2025-12-21 20:32:55,674 - MCP Server - INFO - Interface name: com.kylin.mcp.MasterAgent
+2025-12-21 20:32:55,674 - MCP Server - INFO - 
+2025-12-21 20:32:55,674 - MCP Server - INFO - 等待子智能体注册...
+2025-12-21 20:32:55,674 - MCP Server - INFO - ============================================================
+2025-12-21 20:32:58,668 - file_agent - INFO - 启动FileAgent MCP服务
+2025-12-21 20:32:58,669 - MCP Server - INFO - Child agent registered: file_agent (instance: file_agent_1766320378)
+2025-12-21 20:32:58,670 - MCP Server - INFO -   Tools: ['file_agent.search_file', 'file_agent.move_to_trash', 'file_agent.batch_rename']
+2025-12-21 20:32:58,670 - file_agent - INFO - FileAgent已成功注册到MCP Server
+2025-12-21 20:32:59,679 - setting_agent - INFO - 启动SettingsAgent MCP服务
+2025-12-21 20:32:59,680 - MCP Server - INFO - Child agent registered: settings_agent (instance: settings_agent_1766320379)
+2025-12-21 20:32:59,680 - MCP Server - INFO -   Tools: ['settings_agent.change_wallpaper', 'settings_agent.adjust_volume', 'settings_agent.bluetooth_manage']
+2025-12-21 20:32:59,680 - setting_agent - INFO - SettingsAgent已成功注册到MCP Server
+2025-12-21 20:33:00,688 - network_agent - INFO - 启动 NetworkAgent MCP 服务
+2025-12-21 20:33:00,689 - MCP Server - INFO - Child agent registered: network_agent (instance: network_agent_1766320380)
+2025-12-21 20:33:00,689 - MCP Server - INFO -   Tools: ['network_agent.list_wifi', 'network_agent.connect_wifi', 'network_agent.disconnect_wifi', 'network_agent.get_wifi_status', 'network_agent.set_proxy', 'network_agent.clear_proxy', 'network_agent.get_proxy_status', 'network_agent.speed_test', 'network_agent.get_network_status']
+2025-12-21 20:33:00,689 - network_agent - INFO - NetworkAgent 已成功注册到 MCP Server
+2025-12-21 20:33:00,689 - network_agent - INFO - 工具: ['network_agent.list_wifi', 'network_agent.connect_wifi', 'network_agent.disconnect_wifi', 'network_agent.get_wifi_status', 'network_agent.set_proxy', 'network_agent.clear_proxy', 'network_agent.get_proxy_status', 'network_agent.speed_test', 'network_agent.get_network_status']
+2025-12-21 20:33:00,689 - network_agent - INFO - NetworkAgent 服务已启动，等待调用...
+Traceback (most recent call last):
+  File "/home/ok/桌面/Kylin-TARS/desktop/agent_project/src/app_agent_mcp.py", line 19, in <module>
+    from src.app_agent_logic import AppAgentLogic
+  File "/home/ok/桌面/Kylin-TARS/desktop/agent_project/src/app_agent_logic.py", line 228
+    return self.make_response(
+IndentationError: unexpected indent
+2025-12-21 20:33:02,695 - monitor_agent - INFO -  启动 MonitorAgent MCP 服务
+2025-12-21 20:33:02,696 - MCP Server - INFO - Child agent registered: monitor_agent (instance: monitor_agent_1766320382)
+2025-12-21 20:33:02,696 - MCP Server - INFO -   Tools: ['monitor_agent.get_system_status', 'monitor_agent.clean_background_process', 'monitor_agent.monitor_agent_status']
+2025-12-21 20:33:02,696 - monitor_agent - INFO - MonitorAgent 已成功注册到 MCP Server
+2025-12-21 20:33:02,696 - monitor_agent - INFO -  MonitorAgent 服务已启动，等待调用...
+2025-12-21 20:33:03,695 - media_agent - INFO - 启动 MediaAgent MCP 服务
+2025-12-21 20:33:03,696 - MCP Server - INFO - Child agent registered: media_agent (instance: media_agent_1766320383)
+2025-12-21 20:33:03,696 - MCP Server - INFO -   Tools: ['media_agent.play_media', 'media_agent.media_control', 'media_agent.capture_media_frame']
+2025-12-21 20:33:03,696 - media_agent - INFO - MediaAgent 已成功注册到 MCP Server
+2025-12-21 20:33:03,696 - media_agent - INFO - MediaAgent 服务已启动，等待调用...
+Traceback (most recent call last):
+  File "/home/ok/桌面/Kylin-TARS/desktop/agent_project/src/gradio_upgrade.py", line 46, in <module>
+    from app_agent_logic import AppAgentLogic
+  File "/home/ok/桌面/Kylin-TARS/desktop/agent_project/src/app_agent_logic.py", line 228
+    return self.make_response(
+IndentationError: unexpected indent
+[0;36m[INFO][0m 正在清理进程...
+[0;32m[SUCCESS][0m 清理完成

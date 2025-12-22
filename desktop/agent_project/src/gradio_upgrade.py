@@ -23,6 +23,7 @@ import time
 import subprocess
 import ipaddress
 import threading
+import shutil
 from gradio import Timer
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
@@ -530,75 +531,121 @@ def capture_screenshot(prefix: str = "screenshot") -> Optional[str]:
                 except:
                     continue
     
-    # 优先尝试最小化窗口（如果工具可用）
+    # 优先尝试显示桌面（最小化所有窗口）
+    # 注意：如果使用scrot -z选项，可以直接截取根窗口，不需要最小化窗口
+    # 这样可以避免影响浏览器等应用程序的状态
     window_minimized = False
-    try:
-        # 方法1: 使用wmctrl最小化所有窗口
-        result = subprocess.run(
-            ["wmctrl", "-l"],
-            capture_output=True,
-            text=True,
-            timeout=3,
-            env=env
-        )
-        if result.returncode == 0:
-            window_ids = []
-            for line in result.stdout.strip().split('\n'):
-                if line.strip():
-                    window_id = line.split()[0]
-                    window_ids.append(window_id)
-            
-            # 最小化所有窗口
-            for window_id in window_ids:
-                try:
-                    subprocess.run(
-                        ["wmctrl", "-i", "-r", window_id, "-b", "add,hidden"],
-                        capture_output=True,
-                        timeout=1,
-                        env=env
-                    )
-                except:
-                    pass
-            
-            window_minimized = True
-            time.sleep(0.5)
-    except:
-        # 方法2: 如果wmctrl不可用，尝试使用xdotool
+    use_root_window = False  # 标记是否可以使用root window选项
+    
+    # 检查是否可以使用scrot -z（不需要最小化窗口）
+    if shutil.which("scrot"):
+        use_root_window = True
+        # 如果可以使用root window选项，就不需要最小化窗口
+        # 这样可以避免影响浏览器状态
+    else:
+        # 如果没有scrot，才尝试最小化窗口
         try:
-            subprocess.run(
-                ["xdotool", "search", "--onlyvisible", "--class", ".*", "windowminimize"],
-                capture_output=True,
-                timeout=3,
-                env=env
-            )
-            window_minimized = True
-            time.sleep(0.5)
+            # 方法1: 使用wmctrl显示桌面（最可靠的方法）
+            if shutil.which("wmctrl"):
+                result = subprocess.run(
+                    ["wmctrl", "-k", "on"],  # 显示桌面（最小化所有窗口）
+                    capture_output=True,
+                    timeout=3,
+                    env=env
+                )
+                if result.returncode == 0:
+                    window_minimized = True
+                    time.sleep(1)  # 等待窗口最小化完成
         except:
             pass
     
-    # 如果无法最小化窗口，使用root window截图（直接截取桌面背景）
+    # 如果可以使用root window选项（scrot -z），就不需要最小化窗口
+    # 这样可以避免影响浏览器等应用程序的状态
+    if not use_root_window:
+        # 如果wmctrl不可用，尝试其他方法
+        if not window_minimized:
+            try:
+                # 方法2: 使用xdotool发送Super+D快捷键（显示桌面）
+                if shutil.which("xdotool"):
+                    subprocess.run(
+                        ["xdotool", "key", "super+d"],
+                        capture_output=True,
+                        timeout=2,
+                        env=env
+                    )
+                    window_minimized = True
+                    time.sleep(1)
+            except:
+                pass
+        
+        # 如果还是无法最小化，尝试逐个最小化窗口
+        if not window_minimized:
+            try:
+                if shutil.which("wmctrl"):
+                    result = subprocess.run(
+                        ["wmctrl", "-l"],
+                        capture_output=True,
+                        text=True,
+                        timeout=3,
+                        env=env
+                    )
+                    if result.returncode == 0:
+                        window_ids = []
+                        for line in result.stdout.strip().split('\n'):
+                            if line.strip():
+                                parts = line.split()
+                                if len(parts) > 0:
+                                    window_id = parts[0]
+                                    # 排除桌面和系统窗口
+                                    window_title = ' '.join(parts[3:]) if len(parts) > 3 else ""
+                                    if window_title and "desktop" not in window_title.lower():
+                                        window_ids.append(window_id)
+                        
+                        # 最小化所有窗口
+                        for window_id in window_ids:
+                            try:
+                                subprocess.run(
+                                    ["wmctrl", "-i", "-r", window_id, "-b", "add,hidden"],
+                                    capture_output=True,
+                                    timeout=1,
+                                    env=env
+                                )
+                            except:
+                                pass
+                        
+                        window_minimized = True
+                        time.sleep(0.5)
+            except:
+                pass
+    
+    # 截图桌面（优先使用root window选项确保截取桌面背景）
     # 方法1: 使用 scrot 的 root 选项（直接截取根窗口，不包含窗口）
     try:
-        if window_minimized:
-            # 如果窗口已最小化，使用普通截图
+        if shutil.which("scrot"):
+            # 无论窗口是否最小化，都使用root选项确保截取桌面背景
             subprocess.run(
-                ["scrot", "-d", "2", screenshot_path],
+                ["scrot", "-z", "-d", "1", screenshot_path],  # -z选项截取根窗口（桌面背景）
                 check=True,
                 capture_output=True,
                 timeout=15,
                 env=env
             )
-        else:
-            # 如果无法最小化，使用root选项直接截取桌面背景
-            subprocess.run(
-                ["scrot", "-z", "-d", "1", screenshot_path],  # -z选项截取根窗口
-                check=True,
-                capture_output=True,
-                timeout=15,
-                env=env
-            )
-        if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
-            return screenshot_path
+            if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
+                # scrot -z 直接截取根窗口，不需要最小化窗口
+                # 但如果之前最小化了（因为其他原因），还是恢复一下
+                if window_minimized:
+                    try:
+                        if shutil.which("wmctrl"):
+                            subprocess.run(
+                                ["wmctrl", "-k", "off"],  # 恢复窗口
+                                capture_output=True,
+                                timeout=2,
+                                env=env
+                            )
+                            time.sleep(0.5)  # 等待窗口恢复完成
+                    except:
+                        pass
+                return screenshot_path
     except Exception as e:
         print(f"[WARNING] scrot 截图失败: {e}")
     
@@ -864,6 +911,9 @@ def execute_reasoning_plan(reasoning: dict) -> List[str]:
     if not execution_plan:
         return results
     
+    # 保存执行过程中的中间结果，供后续步骤使用
+    execution_context = {}
+    
     for step in execution_plan:
         step_num = step.get("step", 0)
         action = step.get("action", "")
@@ -882,12 +932,42 @@ def execute_reasoning_plan(reasoning: dict) -> List[str]:
             
             # 根据agent和tool调用相应的智能体方法
             if agent == "FileAgent":
-                # 支持多种工具名称格式
-                if tool_normalized in ["search_file", "search", "file_agent.search", "file_agent.search_file"]:
-                    path = step.get("parameters", {}).get("path") or step.get("parameters", {}).get("search_path", os.path.expanduser("~"))
-                    keyword = step.get("parameters", {}).get("keyword", "")
-                    result = file_agent.search_file(path, keyword, recursive=True)
-                    results.append(f"FileAgent: {result.get('msg', '执行完成')}")
+                # 支持多种工具名称格式（包括推理链可能生成的格式）
+                if tool_normalized in ["search_file", "search", "file_agent.search", "file_agent.search_file",
+                                       "check_file_exists", "check_existence", "file_exists", "verify_file"]:
+                    # 如果是检查文件存在，先检查，然后返回结果
+                    if tool_normalized in ["check_file_exists", "check_existence", "file_exists", "verify_file"]:
+                        file_path = step.get("parameters", {}).get("file_path", "") or step.get("parameters", {}).get("path", "")
+                        if file_path and os.path.exists(file_path):
+                            results.append(f"FileAgent: 文件存在: {file_path}")
+                        else:
+                            results.append(f"FileAgent: 文件不存在: {file_path}")
+                    else:
+                        # 文件搜索
+                        path = step.get("parameters", {}).get("path") or step.get("parameters", {}).get("search_path", os.path.expanduser("~"))
+                        keyword = step.get("parameters", {}).get("keyword", "")
+                        recursive = step.get("parameters", {}).get("recursive", True)
+                        result = file_agent.search_file(path, keyword, recursive)
+                        results.append(f"FileAgent: {result.get('msg', '执行完成')}")
+                        # 保存搜索结果供后续步骤使用
+                        if result.get("status") == "success" and result.get("data"):
+                            step["_search_result"] = result.get("data")
+                            execution_context["last_search_result"] = result.get("data")
+                elif tool_normalized in ["select", "file_select", "get_first_file"]:
+                    # 从搜索结果中选择文件（组合任务场景）
+                    search_result = step.get("_search_result") or execution_context.get("last_search_result") or step.get("parameters", {}).get("search_result")
+                    if search_result and isinstance(search_result, list) and len(search_result) > 0:
+                        first_file = search_result[0]
+                        if isinstance(first_file, dict):
+                            file_path = first_file.get("file_path", "")
+                        else:
+                            file_path = str(first_file)
+                        results.append(f"FileAgent: 选择文件: {file_path}")
+                        # 保存选择的文件路径供后续步骤使用
+                        step["_selected_file"] = file_path
+                        execution_context["selected_file"] = file_path
+                    else:
+                        results.append("FileAgent: 未找到可用的文件")
                 elif tool_normalized in ["move_to_trash", "file_agent.move_to_trash"]:
                     file_path = step.get("parameters", {}).get("file_path", "")
                     if file_path:
@@ -899,24 +979,69 @@ def execute_reasoning_plan(reasoning: dict) -> List[str]:
                     results.append(f"FileAgent: 工具 '{tool}' 暂不支持，步骤已记录 - {action}")
                     
             elif agent == "SettingsAgent":
-                if tool_normalized in ["set_wallpaper", "change_wallpaper", "settings_agent.change_wallpaper"]:
-                    image_path = step.get("parameters", {}).get("image_path") or step.get("parameters", {}).get("wallpaper_path", "")
+                # 支持推理链可能生成的各种工具名称格式
+                if tool_normalized in ["set_wallpaper", "change_wallpaper", "settings_agent.change_wallpaper",
+                                       "settings_agent.set_wallpaper", "wallpaper", "set_desktop_wallpaper"]:
+                    # 优先从执行上下文或前面步骤的选择结果中获取文件路径（组合任务场景）
+                    image_path = None
+                    # 1. 从执行上下文中获取（最优先）
+                    if execution_context.get("selected_file"):
+                        image_path = execution_context.get("selected_file")
+                    # 2. 从执行上下文的搜索结果中获取
+                    elif execution_context.get("last_search_result") and isinstance(execution_context.get("last_search_result"), list) and len(execution_context.get("last_search_result")) > 0:
+                        first_file = execution_context.get("last_search_result")[0]
+                        if isinstance(first_file, dict):
+                            image_path = first_file.get("file_path", "")
+                        else:
+                            image_path = str(first_file)
+                    # 3. 检查前面步骤是否有选择的文件
+                    else:
+                        for prev_step in reasoning.get("execution_plan", []):
+                            if prev_step.get("_selected_file"):
+                                image_path = prev_step.get("_selected_file")
+                                break
+                            elif prev_step.get("_search_result") and isinstance(prev_step.get("_search_result"), list) and len(prev_step.get("_search_result")) > 0:
+                                first_file = prev_step.get("_search_result")[0]
+                                if isinstance(first_file, dict):
+                                    image_path = first_file.get("file_path", "")
+                                else:
+                                    image_path = str(first_file)
+                                break
+                    
+                    # 4. 如果没有从前面步骤获取到，从当前步骤参数中获取
+                    if not image_path:
+                        image_path = step.get("parameters", {}).get("image_path") or step.get("parameters", {}).get("wallpaper_path", "") or step.get("parameters", {}).get("file_path", "")
+                    
                     if image_path:
                         result = settings_agent.change_wallpaper(image_path)
                         results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
-                elif tool_normalized in ["adjust_volume", "settings_agent.adjust_volume"]:
+                    else:
+                        results.append("SettingsAgent: 未指定壁纸文件路径")
+                elif tool_normalized in ["verify_wallpaper", "check_wallpaper", "wallpaper_verify"]:
+                    # 验证壁纸是否设置成功（可选步骤）
+                    results.append("SettingsAgent: 壁纸设置完成")
+                elif tool_normalized in ["adjust_volume", "settings_agent.adjust_volume", "set_volume", "volume"]:
                     volume = step.get("parameters", {}).get("volume", 50)
                     result = settings_agent.adjust_volume(volume)
                     results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
-                elif tool_normalized in ["bluetooth_manage", "settings_agent.bluetooth_manage"]:
+                elif tool_normalized in ["bluetooth_manage", "settings_agent.bluetooth_manage", 
+                                         "bluetooth_status_check", "bluetooth_toggle", "bluetooth_enable", "bluetooth_disable"]:
+                    # 统一使用 bluetooth_manage
                     action_type = step.get("parameters", {}).get("action", "status")
+                    if tool_normalized in ["bluetooth_toggle", "bluetooth_enable"]:
+                        action_type = "enable"
+                    elif tool_normalized == "bluetooth_disable":
+                        action_type = "disable"
+                    elif tool_normalized == "bluetooth_status_check":
+                        action_type = "status"
                     result = settings_agent.bluetooth_manage(action_type)
                     results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
                 else:
                     results.append(f"SettingsAgent: 工具 '{tool}' 暂不支持，步骤已记录 - {action}")
                     
             elif agent == "NetworkAgent":
-                if tool_normalized in ["scan_wifi", "network_agent.scan_wifi"]:
+                # 支持推理链可能生成的各种工具名称格式
+                if tool_normalized in ["scan_wifi", "network_agent.scan_wifi", "list_wifi", "network_agent.list_wifi"]:
                     result = network_agent.scan_wifi()
                     results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
                 elif tool_normalized in ["connect_wifi", "network_agent.connect_wifi"]:
@@ -932,22 +1057,46 @@ def execute_reasoning_plan(reasoning: dict) -> List[str]:
                 elif tool_normalized in ["speed_test", "network_agent.speed_test"]:
                     result = network_agent.speed_test()
                     results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
-                elif tool_normalized in ["get_network_status", "network_agent.get_network_status"]:
+                elif tool_normalized in ["get_network_status", "network_agent.get_network_status", 
+                                         "status_check", "status_report", "connection_status", 
+                                         "get_network_name", "network_status", "check_network"]:
+                    # 统一使用 get_network_status 获取网络状态
                     result = network_agent.get_network_status()
                     results.append(f"NetworkAgent: {result.get('msg', '执行完成')}")
                 else:
                     results.append(f"NetworkAgent: 工具 '{tool}' 暂不支持，步骤已记录 - {action}")
                     
             elif agent == "AppAgent":
-                # 支持多种工具名称格式
-                if tool_normalized in ["launch_app", "open_app", "open", "app_agent.launch_app", "app_agent.open"]:
+                # 支持多种工具名称格式（包括推理链可能生成的格式）
+                if tool_normalized in ["launch_app", "open_app", "open", "app_agent.launch_app", "app_agent.open",
+                                       "launch", "start_app", "app_launch"]:
                     app_name = step.get("parameters", {}).get("app_name", "")
+                    # 支持从action中提取应用名（推理链可能将应用名放在action中）
+                    if not app_name:
+                        action_text = step.get("action", "")
+                        if "文件管理器" in action_text or "文件管理" in action_text:
+                            app_name = "文件"
+                        elif "终端" in action_text:
+                            app_name = "终端"
+                        elif "浏览器" in action_text:
+                            app_name = "firefox"
                     if app_name:
                         result = app_agent.launch_app(app_name)
                         results.append(f"AppAgent: {result.get('msg', '执行完成')}")
                     else:
                         results.append(f"AppAgent: 未指定应用名称")
-                elif tool_normalized in ["close_app", "app_agent.close_app"]:
+                elif tool_normalized in ["search", "find_app", "app_agent.find_app", "app_search", "search_app"]:
+                    # 查找应用（可选步骤，通常可以直接启动）
+                    app_name = step.get("parameters", {}).get("app_name", "")
+                    if app_name:
+                        result = app_agent.find_app(app_name)
+                        if result.get("status") == "success":
+                            results.append(f"AppAgent: 找到应用: {app_name}")
+                        else:
+                            results.append(f"AppAgent: 未找到应用: {app_name}")
+                    else:
+                        results.append("AppAgent: 未指定应用名称")
+                elif tool_normalized in ["close_app", "app_agent.close_app", "close", "stop_app"]:
                     app_name = step.get("parameters", {}).get("app_name", "")
                     if app_name:
                         result = app_agent.close_app(app_name)
@@ -963,7 +1112,9 @@ def execute_reasoning_plan(reasoning: dict) -> List[str]:
                 # 支持多种工具名称格式（包括推理链可能生成的格式）
                 if tool_normalized in ["get_system_status", "cpu_usage", "memory_usage", "disk_usage", "display_overall_usage", 
                                        "monitor_agent.get_system_status", "monitor_agent.cpu_usage", "monitor_agent.memory_usage", 
-                                       "monitor_agent.disk_usage", "monitor_agent.display_overall_usage"]:
+                                       "monitor_agent.disk_usage", "monitor_agent.display_overall_usage",
+                                       "system_monitor", "system_monitor.cpu_usage", "system_monitor.memory_usage", 
+                                       "system_monitor.disk_usage", "app_status_check", "system_status"]:
                     # 统一使用 get_system_status 获取完整的系统状态
                     result = monitor_agent.get_system_status()
                     if result["status"] == "success":
@@ -993,9 +1144,10 @@ def execute_reasoning_plan(reasoning: dict) -> List[str]:
                     results.append(f"MonitorAgent: 工具 '{tool}' 暂不支持，步骤已记录 - {action}")
                     
             elif agent == "MediaAgent" and HAS_MEDIA_AGENT:
-                # 支持多种工具名称格式
-                if tool_normalized in ["play_media", "play", "media_agent.play_media", "media_agent.play"]:
-                    media_path = step.get("parameters", {}).get("media_path", "")
+                # 支持多种工具名称格式（包括推理链可能生成的格式）
+                if tool_normalized in ["play_media", "play", "media_agent.play_media", "media_agent.play",
+                                       "play_video", "media_agent.play_video", "play_audio", "media_agent.play_audio"]:
+                    media_path = step.get("parameters", {}).get("media_path", "") or step.get("parameters", {}).get("file_path", "")
                     if media_path:
                         result = media_agent.play_media(media_path)
                         results.append(f"MediaAgent: {result.get('msg', '执行完成')}")
@@ -1225,7 +1377,30 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
                     path = p
                     break
         
-        keyword = ".png"
+        # 提取关键词（支持多种格式）
+        keyword = ""
+        import re
+        # 尝试提取文件扩展名或关键词
+        if "png" in task_lower:
+            keyword = "png"
+        elif "jpg" in task_lower or "jpeg" in task_lower:
+            keyword = "jpg"
+        elif "pdf" in task_lower:
+            keyword = "pdf"
+        elif "txt" in task_lower:
+            keyword = "txt"
+        else:
+            # 如果没有找到扩展名，尝试提取其他关键词
+            # 例如："搜索下载目录下的图片文件" -> 提取"图片"
+            keyword_match = re.search(r'([\w]+)(文件|文件)', task_lower)
+            if keyword_match:
+                keyword = keyword_match.group(1)
+            else:
+                keyword = ""  # 如果没有找到，搜索所有文件
+        
+        if keyword:
+            keyword = f".{keyword}" if not keyword.startswith(".") else keyword
+        
         if "下载" in task_lower:
             # 保持使用检测到的下载目录
             pass
@@ -1255,10 +1430,22 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
         result = file_agent.search_file(path, keyword, recursive=True)
         results.append(f"FileAgent: {result['msg']}")
         
+        # 保存搜索结果，供组合任务使用（例如：搜索文件后设置为壁纸）
+        search_result_data = None
+        if result.get("status") == "success" and result.get("data"):
+            search_result_data = result.get("data")
+        
         reasoning["execution_plan"].append({
             "step": 1,
             "action": f"搜索 {path} 中的 {keyword} 文件",
-            "agent": "FileAgent"
+            "agent": "FileAgent",
+            "tool": "file_agent.search_file",
+            "parameters": {
+                "search_path": path,
+                "keyword": keyword,
+                "recursive": True
+            },
+            "_search_result": search_result_data  # 保存搜索结果供后续使用
         })
     
     # 回收站操作
@@ -1271,12 +1458,63 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
     if any(kw in task_lower for kw in ["壁纸", "桌面背景"]):
         add_log("调用 SettingsAgent 设置壁纸", "info")
         reasoning["thought_chain"]["agent_selection"].append({"agent": "SettingsAgent", "reason": "系统设置"})
-        results.append("SettingsAgent: 壁纸设置功能已准备")
+        
+        # 提取壁纸路径
+        import re
+        wallpaper_path = ""
+        
+        # 1. 优先检查是否有文件搜索结果（组合任务场景）
+        search_result = None
+        for plan_step in reasoning.get("execution_plan", []):
+            if plan_step.get("agent") == "FileAgent" and plan_step.get("tool") == "file_agent.search_file":
+                search_result = plan_step.get("_search_result")
+                break
+        
+        # 如果找到搜索结果，使用第一个文件作为壁纸
+        if search_result and isinstance(search_result, list) and len(search_result) > 0:
+            first_file = search_result[0]
+            if isinstance(first_file, dict):
+                wallpaper_path = first_file.get("file_path", "")
+            elif isinstance(first_file, str):
+                wallpaper_path = first_file
+            add_log(f"从搜索结果中提取壁纸路径: {wallpaper_path}", "info")
+        
+        # 2. 如果没有搜索结果，尝试从任务中提取文件路径
+        if not wallpaper_path:
+            path_match = re.search(r'([/\w\.\-]+\.(png|jpg|jpeg|bmp|gif))', task)
+            if path_match:
+                wallpaper_path = path_match.group(1)
+        
+        # 3. 如果还是没有找到，尝试从任务中提取以/开头的路径
+        if not wallpaper_path and "/" in task:
+            parts = task.split()
+            for part in parts:
+                if part.startswith("/"):
+                    # 检查是否是文件路径（包含扩展名或存在）
+                    if any(ext in part.lower() for ext in ['.png', '.jpg', '.jpeg', '.bmp', '.gif']) or os.path.exists(part):
+                        wallpaper_path = part
+                        break
+        
+        # 4. 执行壁纸设置
+        if wallpaper_path:
+            if os.path.exists(wallpaper_path):
+                result = settings_agent.change_wallpaper(wallpaper_path)
+                results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
+            else:
+                # 即使文件不存在也尝试设置（可能是相对路径或网络路径）
+                result = settings_agent.change_wallpaper(wallpaper_path)
+                results.append(f"SettingsAgent: {result.get('msg', '执行完成')}")
+        else:
+            results.append("SettingsAgent: 未找到有效的壁纸文件路径")
         
         reasoning["execution_plan"].append({
             "step": len(reasoning["execution_plan"]) + 1,
-            "action": "设置桌面壁纸",
-            "agent": "SettingsAgent"
+            "action": f"设置桌面壁纸: {wallpaper_path}" if wallpaper_path else "设置桌面壁纸",
+            "agent": "SettingsAgent",
+            "tool": "settings_agent.change_wallpaper",
+            "parameters": {
+                "wallpaper_path": wallpaper_path
+            } if wallpaper_path else {}
         })
     
     # 音量调整
@@ -1295,7 +1533,11 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
         reasoning["execution_plan"].append({
             "step": len(reasoning["execution_plan"]) + 1,
             "action": f"调整音量到 {volume}%",
-            "agent": "SettingsAgent"
+            "agent": "SettingsAgent",
+            "tool": "settings_agent.adjust_volume",
+            "parameters": {
+                "volume": volume
+            }
         })
     
     # WiFi 操作
@@ -1309,7 +1551,9 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
         reasoning["execution_plan"].append({
             "step": len(reasoning["execution_plan"]) + 1,
             "action": "获取网络状态",
-            "agent": "NetworkAgent"
+            "agent": "NetworkAgent",
+            "tool": "network_agent.get_network_status",
+            "parameters": {}
         })
     
     # 代理设置
@@ -1323,14 +1567,14 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
         add_log("调用 AppAgent 启动应用", "info")
         reasoning["thought_chain"]["agent_selection"].append({"agent": "AppAgent", "reason": "应用管理"})
         
-        # 提取应用名
+        # 提取应用名（使用通用名称，AppAgent会自动映射）
         app_name = "firefox"  # 默认
         if "浏览器" in task_lower or "firefox" in task_lower:
             app_name = "firefox"
         elif "终端" in task_lower:
-            app_name = "gnome-terminal"
-        elif "文件" in task_lower:
-            app_name = "nautilus"
+            app_name = "终端"  # 使用通用名称，AppAgent会自动映射到ukui-terminal或gnome-terminal
+        elif "文件" in task_lower or "文件管理器" in task_lower or "文件管理" in task_lower:
+            app_name = "文件"  # 使用通用名称，AppAgent会自动映射到peony或nautilus
         
         result = app_agent.launch_app(app_name)
         results.append(f"AppAgent: {result['msg']}")
@@ -1338,7 +1582,11 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
         reasoning["execution_plan"].append({
             "step": len(reasoning["execution_plan"]) + 1,
             "action": f"启动 {app_name}",
-            "agent": "AppAgent"
+            "agent": "AppAgent",
+            "tool": "app_agent.launch_app",
+            "parameters": {
+                "app_name": app_name
+            }
         })
     
     # 关闭应用
@@ -1367,7 +1615,8 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
                 "step": len(reasoning.get("execution_plan", [])) + 1,
                 "action": "获取系统状态",
                 "agent": "MonitorAgent",
-                "tool": "get_system_status"
+                "tool": "monitor_agent.get_system_status",
+                "parameters": {}
             })
         else:
             results.append("MonitorAgent: 系统监控功能不可用")
@@ -1393,11 +1642,49 @@ def execute_task(task: str, use_memory: bool = True, confirm: bool = False) -> T
                 "step": len(reasoning.get("execution_plan", [])) + 1,
                 "action": f"清理进程{' ' + process_name if process_name else ''}",
                 "agent": "MonitorAgent",
-                "tool": "clean_background_process",
+                "tool": "monitor_agent.clean_background_process",
                 "parameters": {"process_name": process_name} if process_name else {}
             })
         else:
             results.append("MonitorAgent: 进程清理功能不可用")
+    
+    # 媒体播放
+    if any(kw in task_lower for kw in ["播放", "play", "视频", "音频", "media"]):
+        if HAS_MEDIA_AGENT:
+            add_log("调用 MediaAgent 播放媒体", "info")
+            reasoning["thought_chain"]["agent_selection"].append({"agent": "MediaAgent", "reason": "媒体播放"})
+            
+            # 提取媒体文件路径
+            import re
+            # 尝试从任务中提取文件路径
+            path_match = re.search(r'([/\w\.\-]+\.(mp4|avi|mkv|mov|mp3|wav|ogg|flac))', task)
+            media_path = path_match.group(1) if path_match else ""
+            
+            if not media_path and "/" in task:
+                # 尝试提取路径
+                parts = task.split()
+                for part in parts:
+                    if part.startswith("/") and os.path.exists(part):
+                        media_path = part
+                        break
+            
+            if media_path and os.path.exists(media_path):
+                result = media_agent.play_media(media_path)
+                results.append(f"MediaAgent: {result.get('msg', '执行完成')}")
+            else:
+                results.append("MediaAgent: 未找到有效的媒体文件路径")
+            
+            reasoning["execution_plan"].append({
+                "step": len(reasoning.get("execution_plan", [])) + 1,
+                "action": f"播放媒体文件: {media_path}" if media_path else "播放媒体文件",
+                "agent": "MediaAgent",
+                "tool": "media_agent.play_media",
+                "parameters": {
+                    "media_path": media_path
+                } if media_path else {}
+            })
+        else:
+            results.append("MediaAgent: 媒体播放功能不可用")
     
     # 生成任务分解描述
     if reasoning.get("execution_plan"):
@@ -1490,7 +1777,7 @@ def demo_task_4():
 
 def demo_task_5():
     """演示任务5：应用启动"""
-    return "启动文件管理器"
+    return "启动终端"
 
 def demo_task_6():
     """演示任务6：系统监控"""
@@ -1559,7 +1846,8 @@ def change_wallpaper(wallpaper_path: str, scale: str) -> Tuple[str, Optional[str
             add_log("壁纸设置完成，等待刷新...", "info")
             # 等待壁纸设置生效（给桌面环境足够时间刷新）
             # 注意：settings_agent.change_wallpaper内部已经等待了，这里再等待确保刷新完成
-            time.sleep(2)
+            # 增加等待时间，确保peony-qt-desktop完全加载新壁纸（从日志看需要更多时间）
+            time.sleep(5)  # 从2秒增加到5秒，确保壁纸完全加载
             
             # 截图桌面（会自动最小化窗口）
             add_log("开始截图桌面...", "info")
@@ -1842,8 +2130,9 @@ def create_ui():
                                             break
                             except:
                                 pass
+                            default_download_path = os.path.expanduser("~/桌面/Kylin-TARS")
                             file_path = gr.Textbox(label="搜索路径", value=default_download_path)
-                            file_keyword = gr.Textbox(label="关键词", value=".png")
+                            file_keyword = gr.Textbox(label="关键词", value="kylin")
                             file_recursive = gr.Checkbox(label="递归", value=True)
                             file_search_btn = gr.Button("🔍 搜索", variant="primary")
                             file_result = gr.Dataframe(headers=["文件名", "路径", "大小", "修改时间"], label="搜索结果")
@@ -2107,59 +2396,69 @@ def create_ui():
             with gr.Tab("⚙️ 更多功能", id="more"):
                 with gr.Accordion("📜 协作日志追溯", open=False):
                     with gr.Row():
+                        # 左侧：日志查询（优化后更紧凑）
+                        with gr.Column(scale=3):
+                            # 筛选条件 - 紧凑布局
+                            with gr.Row():
+                                log_filter_agent = gr.Dropdown(
+                                    choices=["全部", "FileAgent", "SettingsAgent", "NetworkAgent", "AppAgent", "MonitorAgent", "MediaAgent"],
+                                    value="全部",
+                                    label="智能体",
+                                    scale=1
+                                )
+                                log_filter_status = gr.Dropdown(
+                                    choices=["全部", "success", "error", "pending"],
+                                    value="全部",
+                                    label="状态",
+                                    scale=1
+                                )
+                                log_filter_type = gr.Dropdown(
+                                    choices=["全部", "decision", "schedule", "execution", "broadcast"],
+                                    value="全部",
+                                    label="类型",
+                                    scale=1
+                                )
+                            
+                            # 搜索和查询 - 同一行
+                            with gr.Row():
+                                log_search_keyword = gr.Textbox(
+                                    label="",
+                                    placeholder="输入任务关键词或日志ID",
+                                    scale=3
+                                )
+                                log_query_btn = gr.Button("🔍 查询", variant="primary", scale=1)
+                            
+                            # 日志列表 - 占据主要空间
+                            log_table = gr.Dataframe(
+                                headers=["日志ID", "类型", "任务", "智能体", "工具", "状态", "时间"],
+                                label="",
+                                interactive=False
+                            )
+                        
+                        # 右侧：日志链追溯和统计（优化后更紧凑）
                         with gr.Column(scale=2):
-                            gr.Markdown("### 📋 日志查询")
-                        
-                        with gr.Row():
-                            log_filter_agent = gr.Dropdown(
-                                choices=["全部", "FileAgent", "SettingsAgent", "NetworkAgent", "AppAgent", "MonitorAgent", "MediaAgent"],
-                                value="全部",
-                                label="筛选智能体"
-                            )
-                            log_filter_status = gr.Dropdown(
-                                choices=["全部", "success", "error", "pending"],
-                                value="全部",
-                                label="筛选状态"
-                            )
-                            log_filter_type = gr.Dropdown(
-                                choices=["全部", "decision", "schedule", "execution", "broadcast"],
-                                value="全部",
-                                label="筛选类型"
-                            )
-                        
-                        log_search_keyword = gr.Textbox(
-                            label="搜索关键词",
-                            placeholder="输入任务关键词或日志ID"
-                        )
-                        
-                        log_query_btn = gr.Button("🔍 查询日志", variant="primary")
-                        
-                        log_table = gr.Dataframe(
-                            headers=["日志ID", "类型", "任务", "智能体", "工具", "状态", "时间"],
-                            label="日志列表",
-                            interactive=False
-                        )
-                    
-                    with gr.Column(scale=1):
-                        gr.Markdown("### 🔗 日志链追溯")
-                        
-                        log_id_input = gr.Textbox(
-                            label="日志ID",
-                            placeholder="输入日志ID查看完整链路"
-                        )
-                        log_chain_btn = gr.Button("🔗 查看日志链", variant="primary")
-                        
-                        log_chain_display = gr.HTML(
-                            value="<p>输入日志ID查看关联的完整日志链</p>",
-                            label="日志链"
-                        )
-                        
-                        gr.Markdown("### 📊 日志统计")
-                        log_stats_display = gr.HTML(
-                            value="<p>点击查询查看统计信息</p>",
-                            label="统计信息"
-                        )
-                        log_stats_btn = gr.Button("📊 查看统计")
+                            # 日志链追溯 - 紧凑布局
+                            with gr.Accordion("🔗 日志链追溯", open=True):
+                                with gr.Row():
+                                    log_id_input = gr.Textbox(
+                                        label="",
+                                        placeholder="输入日志ID",
+                                        scale=3
+                                    )
+                                    log_chain_btn = gr.Button("查看", variant="primary", scale=1)
+                                
+                                log_chain_display = gr.HTML(
+                                    value="<div style='padding: 10px; color: #666; font-size: 0.9em; min-height: 200px;'>输入日志ID查看关联的完整日志链</div>",
+                                    label=""
+                                )
+                            
+                            # 日志统计 - 紧凑布局
+                            with gr.Accordion("📊 日志统计", open=False):
+                                log_stats_btn = gr.Button("📊 查看统计", variant="primary")
+                                log_stats_display = gr.HTML(
+                                    value="<div style='padding: 10px; color: #666; font-size: 0.9em; min-height: 150px;'>点击按钮查看统计信息</div>",
+                                    label=""
+                                )
                 
                 with gr.Accordion("⚙️ MCP配置管理", open=False):
                     gr.Markdown("### 🔐 智能体权限管理")
@@ -2463,8 +2762,8 @@ def create_ui():
             outputs=[app_msg]
         )
         app_quick_firefox.click(fn=lambda: launch_application("firefox"), outputs=[app_msg])
-        app_quick_file.click(fn=lambda: launch_application("nautilus"), outputs=[app_msg])
-        app_quick_terminal.click(fn=lambda: launch_application("gnome-terminal"), outputs=[app_msg])
+        app_quick_file.click(fn=lambda: launch_application("文件"), outputs=[app_msg])  # 使用通用名称，自动映射
+        app_quick_terminal.click(fn=lambda: launch_application("终端"), outputs=[app_msg])  # 使用通用名称，自动映射
         running_refresh_btn.click(fn=list_running, outputs=[running_apps])
         
         # 记忆轨迹
@@ -2902,34 +3201,43 @@ def find_available_port(start_port: int = 7870, max_attempts: int = 10) -> int:
     return start_port  # 如果都不可用，返回起始端口
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("🚀 Kylin-TARS 智能体管理系统 - 升级版")
-    print("=" * 60)
-    print()
-    print("可用智能体:")
-    print("  - FileAgent: 文件搜索、移动到回收站")
-    print("  - SettingsAgent: 壁纸设置、音量调整")
-    print("  - NetworkAgent: WiFi连接、代理设置")
-    print("  - AppAgent: 应用启动、关闭")
-    print()
-    
-    demo = create_ui()
-    
-    # 动态查找可用端口
-    port = find_available_port(7870)
-    print(f"🌐 启动 Web UI，端口: {port}")
-    print(f"   访问地址: http://localhost:{port}")
-    print()
-    
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=port,
-        share=False,
-        show_error=True,
-        allowed_paths=[
-            SCREENSHOT_DIR,  # 项目截图目录
-            PROJECT_ROOT,  # 项目根目录
-            AGENT_SCREENSHOT_DIR,  # Agent截图目录（MediaAgent、NetworkAgent等使用）
-            os.path.expanduser("~/.config/kylin-gui-agent"),  # 配置目录（包含screenshots子目录）
-        ]
-    )
+    try:
+        print("=" * 60)
+        print("🚀 Kylin-TARS 智能体管理系统 - 升级版")
+        print("=" * 60)
+        print()
+        print("可用智能体:")
+        print("  - FileAgent: 文件搜索、移动到回收站")
+        print("  - SettingsAgent: 壁纸设置、音量调整")
+        print("  - NetworkAgent: WiFi连接、代理设置")
+        print("  - AppAgent: 应用启动、关闭")
+        print()
+        
+        demo = create_ui()
+        
+        # 动态查找可用端口
+        port = find_available_port(7870)
+        print(f"🌐 启动 Web UI，端口: {port}")
+        print(f"   访问地址: http://localhost:{port}")
+        print()
+        
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=port,
+            share=False,
+            show_error=True,
+            allowed_paths=[
+                SCREENSHOT_DIR,  # 项目截图目录
+                PROJECT_ROOT,  # 项目根目录
+                AGENT_SCREENSHOT_DIR,  # Agent截图目录（MediaAgent、NetworkAgent等使用）
+                os.path.expanduser("~/.config/kylin-gui-agent"),  # 配置目录（包含screenshots子目录）
+            ]
+        )
+    except KeyboardInterrupt:
+        print("\n\n用户中断，正在退出...")
+    except Exception as e:
+        import traceback
+        print(f"\n\n❌ 启动失败: {e}")
+        print("\n详细错误信息:")
+        traceback.print_exc()
+        sys.exit(1)
